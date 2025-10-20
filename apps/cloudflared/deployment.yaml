@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # A name for your deployment
+  name: cloudflared-tunnel-deployment
+spec:
+  # We only need one copy of the tunnel running
+  replicas: 1
+  selector:
+    matchLabels:
+      # This label links the deployment to its pods
+      app: cloudflared-tunnel
+  template:
+    metadata:
+      labels:
+        # The label for the pod itself
+        app: cloudflared-tunnel
+    spec:
+      hostNetwork: true
+      containers:
+      - name: cloudflared-container
+        # The container image to use
+        image: cloudflare/cloudflared:latest
+        # This is where we construct your original command
+        command: ["cloudflared"]
+        args:
+        - "tunnel"
+        - "--no-autoupdate"
+        - "run"
+        - "--token"
+        - "$(TUNNEL_TOKEN)"
+        # This is the crucial part: it securely loads the token from the secret
+        env:
+          - name: TUNNEL_TOKEN
+            valueFrom:
+              secretKeyRef:
+                # The name of the secret we created in Step 1
+                name: cloudflare-tunnel-token
+                # The key within that secret that holds the value
+                key: token
