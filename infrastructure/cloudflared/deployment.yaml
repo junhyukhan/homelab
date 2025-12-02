@@ -1,9 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  # A name for your deployment
   name: cloudflared-tunnel-deployment
-  namespace: networking
   labels:
     app: cloudflared-tunnel
 spec:
@@ -40,4 +38,4 @@ spec:
                 # The name of the secret we created in Step 1
                 name: cloudflare-tunnel-token
                 # The key within that secret that holds the value
-                key: token
+                key: TUNNEL_TOKEN
