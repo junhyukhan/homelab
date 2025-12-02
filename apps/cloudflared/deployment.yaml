@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   # A name for your deployment
   name: cloudflared-tunnel-deployment
+  namespace: networking
+  labels:
+    app: cloudflared-tunnel
 spec:
   # We only need one copy of the tunnel running
   replicas: 1
