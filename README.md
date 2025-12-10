@@ -1,10 +1,10 @@
 ### homelab configs
 ---
 
-1. Architecture
+#### 1. Architecture
 Goal: A headless K3s server that is only accessible via the secure Tailscale network. It does not listen on the public internet or the local Wi-Fi LAN (preventing IP shift crashes).  
 
-2. Server Setup
+#### 2. Server Setup
 
 On the server,  
 ```bash
@@ -18,7 +18,7 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
 - `--flannel-iface`: Forces internal pod traffic through the tunnel. May not be `tailscale0`, should be checked.
 - `--tls-san`: Authorizes remote clients (your Mac) to connect via the VPN IP.
 
-3. Client Setup
+#### 3. Client Setup
 
 Copy `/etc/rancher/k3s/k3s.yaml` from the server,
 Paste into `~/.kube/config`.
@@ -28,7 +28,7 @@ Change the ip address in `server: https://127.0.0.1:6443` to the tailscale ip ad
 
 Test using `kubectl get nodes`.  
 
-4. Core Concepts
+#### 4. Core Concepts
 
 **A. Namespace vs. Contexts**
 - Namespaces are the 'rooms': folders on the server to isolate resources
@@ -49,7 +49,7 @@ Test using `kubectl get nodes`.
     1. Template Metadata: The "Stamp" put on new workers (pods).
 - Rule: #2 and #3 MUST match, #1 should also match (doesn't have to)
 
-5. Cheatsheet
+#### 5. Cheatsheet
 
 **basic**
 ```bash
