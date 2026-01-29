@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k3s-dashboard
+  labels:
+    app: k3s-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: k3s-dashboard
+  template:
+    metadata:
+      labels:
+        app: k3s-dashboard
+    spec:
+      serviceAccountName: dash-sa
+      containers:
+      - name: k3s-dashboard
+        image: localhost:30500/k3s-dashboard:latest
+        ports:
+        - containerPort: 8000

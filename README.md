@@ -20,13 +20,21 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
 
 #### 3. Client Setup
 
-Copy `/etc/rancher/k3s/k3s.yaml` from the server,
-Paste into `~/.kube/config`.
-
-
+Copy `/etc/rancher/k3s/k3s.yaml` from the server and save it as `~/.kube/.k3s-config`.
 Change the ip address in `server: https://127.0.0.1:6443` to the tailscale ip address.
 
-Test using `kubectl get nodes`.  
+To use alongside OrbStack's default `~/.kube/config`, add both to `KUBECONFIG` in `~/.zshrc`:
+```bash
+export KUBECONFIG=~/.kube/config:~/.kube/.k3s-config
+```
+
+Then switch between clusters:
+```bash
+kubectl config use-context orbstack    # local OrbStack
+kubectl config use-context default     # k3s homelab (rename with: kubectl config rename-context default homeserver)
+```
+
+Requires Tailscale to be connected. Test with `kubectl get nodes`.
 
 #### 4. Core Concepts
 
@@ -34,9 +42,9 @@ Test using `kubectl get nodes`.
 - Namespaces are the 'rooms': folders on the server to isolate resources
     - They exist on the server.
     - example:
-        - networking: For Cloudflared, Traefik, MetalLB.
-        - dev-tools: For Registry, CI/CD.
-        - apps: personal apps
+        - infrastructure: Cloudflared (Cloudflare Tunnel)
+        - operations: Docker Registry
+        - observability: k3s-dashboard
         - default: For temporary junk.
 - Contexts are the 'ID badge' for entering the 'rooms':
     - Which Building you are entering (Cluster) + Who you are (User) + Which Room you go to automatically (Default Namespace)
@@ -72,6 +80,12 @@ kubectl logs <pod-name>
 # deep dive into config/errors (Events & Status)
 kubectl describe pod <pod-name>
 ```
+
+**NodePorts** (accessible via `<tailscale-ip>:<port>`)
+| Port  | Service        | Namespace     |
+|-------|----------------|---------------|
+| 30500 | docker-registry| operations    |
+| 30800 | k3s-dashboard  | observability |
 
 **Secrets**
 ```bash
