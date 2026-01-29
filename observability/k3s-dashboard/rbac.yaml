@@ -4,13 +4,27 @@ metadata:
   name: dash-sa
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dash-sa-role
+rules:
+  # Core resources (pods, services, namespaces, pvcs, events)
+  - apiGroups: [""]
+    resources: ["pods", "services", "namespaces", "persistentvolumeclaims", "events", "nodes"]
+    verbs: ["get", "list", "watch"]
+  # Apps resources (deployments)
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: dash-sa-view
+  name: dash-sa-binding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: view
+  name: dash-sa-role
 subjects:
   - kind: ServiceAccount
     name: dash-sa

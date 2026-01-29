@@ -20,3 +20,10 @@ spec:
         image: localhost:30500/k3s-dashboard:latest
         ports:
         - containerPort: 8000
+        env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: CLOUDFLARED_METRICS_URL
+          value: "http://$(NODE_IP):2000"

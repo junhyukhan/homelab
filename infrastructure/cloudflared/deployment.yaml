@@ -5,8 +5,9 @@ metadata:
   labels:
     app: cloudflared-tunnel
 spec:
-  # We only need one copy of the tunnel running
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       # This label links the deployment to its pods
@@ -27,9 +28,15 @@ spec:
         args:
         - "tunnel"
         - "--no-autoupdate"
+        - "--metrics"
+        - "0.0.0.0:2000"
         - "run"
         - "--token"
         - "$(TUNNEL_TOKEN)"
+        ports:
+        - name: metrics
+          containerPort: 2000
+          protocol: TCP
         # This is the crucial part: it securely loads the token from the secret
         env:
           - name: TUNNEL_TOKEN
