@@ -1,96 +1,191 @@
-### homelab configs
----
+# homelab
 
-#### 1. Architecture
-Goal: A headless K3s server that is only accessible via the secure Tailscale network. It does not listen on the public internet or the local Wi-Fi LAN (preventing IP shift crashes).  
+Kubernetes manifests for my k3s homelab cluster, accessible only via Tailscale VPN.
 
-#### 2. Server Setup
+## Architecture
 
-On the server,  
-```bash
-curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
-  --node-ip <tailscale ip address> \
-  --flannel-iface tailscale0 \
-  --tls-san <tailscale ip address>" sh -
+```
+Internet → Cloudflare Tunnel → k3s cluster ← Tailscale ← Mac
 ```
 
-- `--node-ip`: Anchors the node to the stable VPN IP.
-- `--flannel-iface`: Forces internal pod traffic through the tunnel. May not be `tailscale0`, should be checked.
-- `--tls-san`: Authorizes remote clients (your Mac) to connect via the VPN IP.
+- **Cluster**: Single-node k3s bound to Tailscale IP (no public/LAN exposure)
+- **External access**: Cloudflare Tunnel for public services
+- **Internal access**: Tailscale VPN + NodePorts
 
-#### 3. Client Setup
+## Directory Structure
 
-Copy `/etc/rancher/k3s/k3s.yaml` from the server and save it as `~/.kube/.k3s-config`.
-Change the ip address in `server: https://127.0.0.1:6443` to the tailscale ip address.
+```
+homelab/
+├── infrastructure/     # Critical services (cloudflared)
+├── operations/         # Dev tools (registry)
+├── observability/      # Monitoring (k3s-dashboard)
+└── kustomization.yaml  # Root aggregator
+```
 
-To use alongside OrbStack's default `~/.kube/config`, add both to `KUBECONFIG` in `~/.zshrc`:
+## Quick Reference
+
+### NodePorts (via `<tailscale-ip>:<port>`)
+
+| Port  | Service         | Namespace     |
+|-------|-----------------|---------------|
+| 30500 | docker-registry | operations    |
+| 30800 | k3s-dashboard   | observability |
+| 2000  | cloudflared metrics | infrastructure (hostNetwork) |
+
+### Deploy Commands
+
+```bash
+# Deploy everything
+kubectl apply -k .
+
+# Deploy a specific layer
+kubectl apply -k infrastructure/
+kubectl apply -k operations/
+kubectl apply -k observability/
+
+# Deploy a specific service
+kubectl apply -k observability/k3s-dashboard/
+
+# Restart a deployment
+kubectl rollout restart deployment <name> -n <namespace>
+```
+
+### Common Operations
+
+```bash
+# Switch to k3s context
+kubectl config use-context homeserver
+
+# View all pods
+kubectl get pods -A
+
+# View pods in a namespace
+kubectl get pods -n observability
+
+# Check logs
+kubectl logs -n <namespace> deployment/<name>
+kubectl logs -n <namespace> <pod-name>
+
+# Debug a pod
+kubectl describe pod -n <namespace> <pod-name>
+
+# Delete and recreate (when stuck)
+kubectl delete deployment <name> -n <namespace>
+kubectl apply -k <path>/
+```
+
+---
+
+## Setup Guide
+
+### 1. Server Setup (k3s node)
+
+```bash
+curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
+  --node-ip <tailscale-ip> \
+  --flannel-iface tailscale0 \
+  --tls-san <tailscale-ip>" sh -
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--node-ip` | Bind to Tailscale IP (stable) |
+| `--flannel-iface` | Route pod traffic through VPN |
+| `--tls-san` | Allow remote kubectl via VPN IP |
+
+### 2. Client Setup (Mac)
+
+Copy `/etc/rancher/k3s/k3s.yaml` from server to `~/.kube/.k3s-config`.
+Change `server: https://127.0.0.1:6443` to `server: https://<tailscale-ip>:6443`.
+
+Add to `~/.zshrc`:
 ```bash
 export KUBECONFIG=~/.kube/config:~/.kube/.k3s-config
 ```
 
-Then switch between clusters:
+Switch contexts:
 ```bash
-kubectl config use-context orbstack    # local OrbStack
-kubectl config use-context default     # k3s homelab (rename with: kubectl config rename-context default homeserver)
-```
-
-Requires Tailscale to be connected. Test with `kubectl get nodes`.
-
-#### 4. Core Concepts
-
-**A. Namespace vs. Contexts**
-- Namespaces are the 'rooms': folders on the server to isolate resources
-    - They exist on the server.
-    - example:
-        - infrastructure: Cloudflared (Cloudflare Tunnel)
-        - operations: Docker Registry
-        - observability: k3s-dashboard
-        - default: For temporary junk.
-- Contexts are the 'ID badge' for entering the 'rooms':
-    - Which Building you are entering (Cluster) + Who you are (User) + Which Room you go to automatically (Default Namespace)
-    - They exist on the client.
-
-**Labels in deployment.yaml**
-- The label app: name is repeated three times.
-    1. Deployment Metadata: Labels the manager (optional but good).
-    1. Spec Selector: The "Hiring Criteria" the manager looks for.
-    1. Template Metadata: The "Stamp" put on new workers (pods).
-- Rule: #2 and #3 MUST match, #1 should also match (doesn't have to)
-
-#### 5. Cheatsheet
-
-**basic**
-```bash
-# Switch default namespace view (requires kubectx)
-kubens networking
-# Rename the awkward default context name
+kubectl config use-context orbstack     # local
+kubectl config use-context homeserver   # k3s (rename from 'default')
 kubectl config rename-context default homeserver
-# Create a namespace
-kubectl create namespace dev-tools
 ```
 
-**Debugging**
-```bash
-# List pods (in current namespace)
-kubectl get pods
-# List pods (in ALL namespaces)
-kubectl get pods -A
-# See why a pod crashed (Startup logs)
-kubectl logs <pod-name>
-# deep dive into config/errors (Events & Status)
-kubectl describe pod <pod-name>
+### 3. Registry Setup (for pushing images)
+
+Add to Docker Desktop settings (Settings → Docker Engine):
+```json
+{
+  "insecure-registries": ["<tailscale-ip>:30500"]
+}
 ```
 
-**NodePorts** (accessible via `<tailscale-ip>:<port>`)
-| Port  | Service        | Namespace     |
-|-------|----------------|---------------|
-| 30500 | docker-registry| operations    |
-| 30800 | k3s-dashboard  | observability |
-
-**Secrets**
+Push images:
 ```bash
-# Create a secret manually (Imperative)
-kubectl create secret generic my-secret --from-literal=key=value -n networking
-# View the DECODED password (without this, you see base64 gibberish)
-kubectl get secret <secret-name> -o jsonpath='{.data.token}' | base64 --decode
+docker build -t <tailscale-ip>:30500/myapp:latest .
+docker push <tailscale-ip>:30500/myapp:latest
+```
+
+---
+
+## Concepts
+
+### Namespaces vs Contexts
+
+| | Namespaces | Contexts |
+|--|------------|----------|
+| **Where** | Server (cluster) | Client (~/.kube/config) |
+| **What** | Resource isolation | Cluster + user + default namespace |
+| **Analogy** | Rooms in a building | ID badge for the building |
+
+### Labels in deployment.yaml
+
+```yaml
+metadata:
+  labels:
+    app: myapp        # 1. Labels the Deployment (optional)
+spec:
+  selector:
+    matchLabels:
+      app: myapp      # 2. "Hiring criteria" (MUST match #3)
+  template:
+    metadata:
+      labels:
+        app: myapp    # 3. Pod label (MUST match #2)
+```
+
+---
+
+## Debugging Cheatsheet
+
+```bash
+# Pod won't start?
+kubectl describe pod -n <ns> <pod>    # Check Events section
+kubectl logs -n <ns> <pod>            # Check startup logs
+
+# Image pull issues?
+kubectl get events -n <ns> --sort-by='.lastTimestamp'
+
+# Service not reachable?
+kubectl get svc -n <ns>               # Check ClusterIP/NodePort
+kubectl get endpoints -n <ns>         # Check if pods are backing it
+
+# Restart everything in a namespace
+kubectl rollout restart deployment -n <ns> --all
+```
+
+## Secrets
+
+```bash
+# Create secret from literal
+kubectl create secret generic my-secret \
+  --from-literal=KEY=value \
+  -n <namespace>
+
+# Create secret from file
+kubectl create secret generic my-secret \
+  --from-file=.env \
+  -n <namespace>
+
+# View decoded secret
+kubectl get secret <name> -n <ns> -o jsonpath='{.data.KEY}' | base64 -d
 ```
