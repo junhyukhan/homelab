@@ -16,7 +16,7 @@ Internet → Cloudflare Tunnel → k3s cluster ← Tailscale ← Mac
 
 ```
 homelab/
-├── infrastructure/     # Critical services (cloudflared)
+├── infrastructure/     # Critical services (cloudflared, gitea)
 ├── operations/         # Dev tools (registry)
 ├── observability/      # Monitoring (k3s-dashboard)
 └── kustomization.yaml  # Root aggregator
@@ -26,20 +26,22 @@ homelab/
 
 ### NodePorts (via `<tailscale-ip>:<port>`)
 
-| Port  | Service         | Namespace     |
-|-------|-----------------|---------------|
-| 30500 | docker-registry | operations    |
-| 30800 | k3s-dashboard   | observability |
-| 2000  | cloudflared metrics | infrastructure (hostNetwork) |
+| Port  | Service             | Namespace      |
+|-------|---------------------|----------------|
+| 30500 | docker-registry     | operations     |
+| 30800 | k3s-dashboard       | observability  |
+| 3000  | gitea (HTTP)        | infrastructure |
+| 2222  | gitea (SSH)         | infrastructure |
+| 2000  | cloudflared metrics | infrastructure |
 
 ### Deploy Commands
 
 ```bash
-# Deploy everything
-kubectl apply -k .
+# Deploy everything (--enable-helm required for Gitea's Helm chart)
+kustomize build --enable-helm . | kubectl apply -f -
 
 # Deploy a specific layer
-kubectl apply -k infrastructure/
+kustomize build --enable-helm infrastructure/ | kubectl apply -f -
 kubectl apply -k operations/
 kubectl apply -k observability/
 

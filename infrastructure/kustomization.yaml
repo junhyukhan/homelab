@@ -5,3 +5,4 @@ namespace: infrastructure
 
 resources:
   - cloudflared
+  - gitea

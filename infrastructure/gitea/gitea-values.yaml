@@ -1,0 +1,38 @@
+# Disable external dependencies for RAM optimization
+postgresql:
+  enabled: false
+postgresql-ha:
+  enabled: false
+valkey:
+  enabled: false
+valkey-cluster:
+  enabled: false
+
+gitea:
+  config:
+    database:
+      DB_TYPE: sqlite3
+    server:
+      # These act as fallbacks; the .env overrides them
+      DOMAIN: "localhost"
+      ROOT_URL: "http://localhost:3000/"
+      SSH_PORT: 2222
+      SSH_LISTEN_PORT: 2222
+    service:
+      DISABLE_REGISTRATION: true
+      ALLOW_ONLY_EXTERNAL_REGISTRATION: false
+    ui:
+      DEFAULT_THEME: arc-green
+
+persistence:
+  enabled: true
+  size: 10Gi
+  accessMode: ReadWriteOnce
+
+service:
+  http:
+    type: LoadBalancer
+    port: 3000
+  ssh:
+    type: LoadBalancer
+    port: 2222

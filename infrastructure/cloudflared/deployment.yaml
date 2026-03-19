@@ -18,7 +18,7 @@ spec:
         # The label for the pod itself
         app: cloudflared-tunnel
     spec:
-      hostNetwork: true
+      # hostNetwork: true
       containers:
       - name: cloudflared-container
         # The container image to use

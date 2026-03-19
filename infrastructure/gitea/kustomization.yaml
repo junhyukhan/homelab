@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+generatorOptions:
+  # Crucial: Keeps the secret name stable so the patch finds it
+  disableNameSuffixHash: true
+
+secretGenerator:
+  - name: gitea-env-config
+    envs:
+      - .env
+
+helmCharts:
+  - name: gitea
+    repo: https://dl.gitea.com/charts/
+    releaseName: gitea
+    namespace: infrastructure
+    valuesFile: gitea-values.yaml
+
+# The Senior Dev Fix: Overriding Helm's output
+patches:
+  - target:
+      kind: Deployment
+      name: gitea
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: gitea
+      spec:
+        # 1. Force Recreate strategy to avoid SQLite lock issues
+        strategy:
+          type: Recreate
+          rollingUpdate: null 
+        template:
+          spec:
+            containers:
+              - name: gitea
+                # 2. Inject all variables from our .env secret
+                envFrom:
+                  - secretRef:
+                      name: gitea-env-config
