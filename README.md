@@ -16,7 +16,7 @@ Internet → Cloudflare Tunnel → k3s cluster ← Tailscale ← Mac
 
 ```
 homelab/
-├── infrastructure/     # Critical services (cloudflared, gitea)
+├── infrastructure/     # Critical services (cloudflared, gitea, home-assistant)
 ├── operations/         # Dev tools (registry)
 ├── observability/      # Monitoring (k3s-dashboard)
 └── kustomization.yaml  # Root aggregator
@@ -24,15 +24,21 @@ homelab/
 
 ## Quick Reference
 
-### NodePorts (via `<tailscale-ip>:<port>`)
+### Exposed Ports (via `<tailscale-ip>:<port>`)
 
-| Port  | Service             | Namespace      |
-|-------|---------------------|----------------|
-| 30500 | docker-registry     | operations     |
-| 30800 | k3s-dashboard       | observability  |
-| 3000  | gitea (HTTP)        | infrastructure |
-| 2222  | gitea (SSH)         | infrastructure |
-| 2000  | cloudflared metrics | infrastructure |
+| Port  | Service             | Namespace      | Type       |
+|-------|---------------------|----------------|------------|
+| 30800 | k3s-dashboard       | observability  | NodePort   |
+| 30500 | docker-registry     | operations     | NodePort   |
+| 30123 | home-assistant      | infrastructure | NodePort   |
+| 8123  | home-assistant¹     | infrastructure | hostNetwork|
+| 3000  | gitea (HTTP)        | infrastructure | NodePort   |
+| 2222  | gitea (SSH)         | infrastructure | NodePort   |
+| 2000  | cloudflared metrics | infrastructure | NodePort   |
+
+¹ Home Assistant uses `hostNetwork: true` for mDNS/SSDP device discovery, so
+`:8123` is bound directly on the host — not via a Kubernetes Service. `:30123`
+is the regular NodePort Service and is the canonical in-cluster address.
 
 ### Deploy Commands
 
@@ -97,12 +103,12 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
 
 ### 2. Client Setup (Mac)
 
-Copy `/etc/rancher/k3s/k3s.yaml` from server to `~/.kube/.k3s-config`.
+Copy `/etc/rancher/k3s/k3s.yaml` from server to `~/.kube/k3s-config`.
 Change `server: https://127.0.0.1:6443` to `server: https://<tailscale-ip>:6443`.
 
 Add to `~/.zshrc`:
 ```bash
-export KUBECONFIG=~/.kube/config:~/.kube/.k3s-config
+export KUBECONFIG=~/.kube/config:~/.kube/k3s-config
 ```
 
 Switch contexts:

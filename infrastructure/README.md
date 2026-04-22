@@ -10,6 +10,7 @@ This directory contains the services required for the cluster to function. If th
 | :--- | :--- | :--- |
 | **Cloudflared** | Creates a secure tunnel to expose internal services to the web without opening ports. | Active |
 | **Gitea** | Self-hosted Git service (SQLite, Helm chart via Kustomize). | Active |
+| **Home Assistant** | Household automation hub. Runs with `hostNetwork` for mDNS/SSDP device discovery. | Active |
 
 
 #### Usage
