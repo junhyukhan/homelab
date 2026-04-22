@@ -12,6 +12,13 @@ probes, etc.) live in the service README —
 [`infrastructure/home-assistant/README.md`](../infrastructure/home-assistant/README.md).
 This file is roadmap-only; prune items as they ship.
 
+**Why HA Core and not HAOS.** HAOS wants bare metal or a dedicated VM with its
+own supervisor and add-on store. Inside k3s we run HA Core — a single container
+with just the Python app. Things HAOS would install as "add-ons" (Mosquitto,
+Zigbee2MQTT, Music Assistant, Wyoming services) become their own pods instead.
+This is cleaner for Kubernetes and gives each service an independent upgrade
+cycle.
+
 ## Roadmap
 
 ### 1. Music Assistant
@@ -50,8 +57,11 @@ http:
   server_host: <tailscale-ip>
 ```
 
-Don't do this before onboarding — the wizard itself connects via `localhost`
-and will break. Also worth considering: `trusted_proxies` / `use_x_forwarded_for`
+Don't do this before onboarding — `server_host` restricts which network
+interface HA listens on. Setting it to the Tailscale IP before onboarding
+stops HA from responding on the LAN interface your browser may be using to
+reach the wizard. Verify your browser can reach HA via the Tailscale IP before
+restricting. Also worth considering: `trusted_proxies` / `use_x_forwarded_for`
 if we ever put an ingress in front.
 
 ### 4. Image version pinning
@@ -69,9 +79,11 @@ detection via phone, BT thermometers). If a BLE-dependent integration is
 added later, extend the deployment with:
 
 ```yaml
-securityContext:
-  capabilities:
-    add: ["NET_ADMIN", "NET_RAW"]
+containers:
+  - name: home-assistant
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN", "NET_RAW"]
 ```
 
 And optionally mount `/run/dbus` for BlueZ access. Not worth doing

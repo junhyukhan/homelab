@@ -15,14 +15,8 @@ Chromecast, MQTT, etc.) live here.
 | Replicas | 1, `strategy: Recreate` | Two HA pods cannot share `:8123` on the host, so rolling updates aren't possible. Brief downtime during upgrades is acceptable. |
 | Network | `hostNetwork: true`, `dnsPolicy: ClusterFirstWithHostNet` | hostNetwork is required for mDNS/SSDP device auto-discovery (WiiM, Chromecast, AirPlay, etc.); multicast doesn't cross pod network boundaries. `ClusterFirstWithHostNet` restores in-cluster DNS, which hostNetwork otherwise bypasses. |
 | Service | NodePort 30123 (`:8123` also bound by hostNetwork) | Kept for consistency with other services, in-cluster DNS (`home-assistant.infrastructure:8123`), and as a stable fallback if hostNetwork is ever removed. |
-| Probes | `startupProbe` (5-min grace), then `livenessProbe` | First boot installs Python deps and can take 1–2 minutes. A plain liveness probe with default thresholds would loop forever. |
+| Probes | `startupProbe` (`failureThreshold: 60 × periodSeconds: 10` = 10-min ceiling), then `livenessProbe` | First boot loads integrations and runs DB migrations, taking 1–2 minutes. A plain `livenessProbe` with default thresholds would kill the container before it finishes. |
 | Env | `TZ=Asia/Seoul` | Used for scheduling, sunrise/sunset calculations, log timestamps. Defaults to UTC otherwise. |
-
-**Core vs HAOS.** HAOS wants bare metal or a dedicated VM with its own
-supervisor and add-on store. Inside k3s we run HA Core — a single container
-with just the Python app. Things HAOS would install as add-ons (Mosquitto,
-Zigbee2MQTT, Music Assistant, Wyoming services) become their own pods. Cleaner
-for Kubernetes; gives us independent upgrade cycles.
 
 **hostNetwork tradeoffs.** HA binds to **every** interface on the host, not
 just Tailscale — reachable from both the VPN and the local LAN. The home LAN
@@ -35,7 +29,7 @@ Over Tailscale, from any device:
 
 * Primary: `http://<tailscale-ip>:8123` (hostNetwork, direct host bind)
 * Fallback: `http://<tailscale-ip>:30123` (Service NodePort)
-* In-cluster DNS: `http://home-assistant.infrastructure:8123`
+* In-cluster DNS: `http://home-assistant.infrastructure:8123` (for other pods calling into HA; HA itself runs on the host network and cannot resolve this address)
 
 First boot takes 1–2 minutes before the onboarding page is reachable.
 Onboarding (admin user, location, integrations) is done in a browser — there
@@ -56,6 +50,9 @@ integration state. Snapshot before any risky change:
 kubectl exec -n infrastructure deployment/home-assistant -- \
   tar czf - -C /config . > ha-config-backup-$(date +%F).tar.gz
 ```
+
+Verify the output file is non-zero before trusting it — if `kubectl exec` fails
+the redirect still creates an empty file with no warning.
 
 Deleting the PVC (or the namespace) wipes all of this.
 

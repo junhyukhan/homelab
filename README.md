@@ -24,21 +24,21 @@ homelab/
 
 ## Quick Reference
 
-### NodePorts (via `<tailscale-ip>:<port>`)
+### Exposed Ports (via `<tailscale-ip>:<port>`)
 
-| Port  | Service             | Namespace      |
-|-------|---------------------|----------------|
-| 30500 | docker-registry     | operations     |
-| 30800 | k3s-dashboard       | observability  |
-| 30123 | home-assistant      | infrastructure |
-| 8123  | home-assistant¹     | infrastructure |
-| 3000  | gitea (HTTP)        | infrastructure |
-| 2222  | gitea (SSH)         | infrastructure |
-| 2000  | cloudflared metrics | infrastructure |
+| Port  | Service             | Namespace      | Type       |
+|-------|---------------------|----------------|------------|
+| 30800 | k3s-dashboard       | observability  | NodePort   |
+| 30500 | docker-registry     | operations     | NodePort   |
+| 30123 | home-assistant      | infrastructure | NodePort   |
+| 8123  | home-assistant¹     | infrastructure | hostNetwork|
+| 3000  | gitea (HTTP)        | infrastructure | NodePort   |
+| 2222  | gitea (SSH)         | infrastructure | NodePort   |
+| 2000  | cloudflared metrics | infrastructure | NodePort   |
 
-¹ Home Assistant runs with `hostNetwork: true` (required for mDNS/SSDP device
-discovery), so `:8123` is bound directly on the host. `:30123` is the regular
-NodePort fallback.
+¹ Home Assistant uses `hostNetwork: true` for mDNS/SSDP device discovery, so
+`:8123` is bound directly on the host — not via a Kubernetes Service. `:30123`
+is the regular NodePort Service and is the canonical in-cluster address.
 
 ### Deploy Commands
 
