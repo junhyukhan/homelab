@@ -60,7 +60,7 @@ own projects)?
 Bring the stack up on top of the restored data:
 
 ```bash
-cd <repo>            # the homelab repo on the box
+cd ~/homelab
 docker compose up -d
 ```
 

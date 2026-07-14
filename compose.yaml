@@ -36,7 +36,10 @@ services:
     environment:
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
     ports:
-      - "30500:5000"
+      # Bound to the Tailscale IP only — NOT 0.0.0.0 — so the box's home-LAN
+      # interface can't reach this unauthenticated HTTP registry. Needs
+      # tailscale0 up before start; restart policy retries if it isn't.
+      - "${TAILSCALE_IP}:30500:5000"
     volumes:
       - registry_data:/var/lib/registry
     networks:

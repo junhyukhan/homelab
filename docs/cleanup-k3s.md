@@ -92,6 +92,22 @@ value as `REGISTRY_HOST` in `.env`.) Then:
 sudo systemctl restart docker
 ```
 
+## 4c. Clone the homelab repo onto the box
+
+Under k3s the box was driven remotely (the repo lived on the Mac, applied via
+kubectl). Under Compose the repo must live **on the box** — that's where
+`docker compose up -d` runs from. Clone it and create the local secrets:
+
+```bash
+git clone https://github.com/junhyukhan/homelab.git ~/homelab
+cd ~/homelab
+cp .env.example .env      # then edit: TZ, TAILSCALE_IP, REGISTRY_HOST, BASE_DOMAIN
+```
+
+Confirm `TAILSCALE_IP` matches `tailscale ip -4`, and that `REGISTRY_HOST` is
+`<that IP>:30500`. The cloudflared credentials JSON is added separately in
+`docs/tunnel-setup.md`. Don't `docker compose up` yet — data migration comes first.
+
 ## 5. Clean the Mac's kubeconfig (run on the Mac, not the box)
 
 ```bash
@@ -109,4 +125,5 @@ Nothing else on the Mac changes.
 1. `docs/data-migration.md` — restore HA data into the named Docker volume.
 2. `docs/tunnel-setup.md` — create the new cloudflared tunnel (required before the
    cloudflared service will start).
-3. Then, from the repo on the box: `git pull && docker compose up -d`.
+3. Then, from `~/homelab` on the box: `docker compose up -d`
+   (and on later updates: `git pull && docker compose up -d`).

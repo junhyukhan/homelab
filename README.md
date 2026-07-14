@@ -24,8 +24,8 @@ Tailnet devices → 100.65.77.63:<port> ───────────┘    
 | Service        | Address / port         | State (volume)         | Plane             |
 |----------------|------------------------|------------------------|-------------------|
 | cloudflared    | — (the tunnel)         | none                   | n/a               |
-| registry       | `100.65.77.63:30500`   | `homelab_registry_data`| Tailscale-private |
-| home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | Tailscale-private |
+| registry       | `100.65.77.63:30500`   | `homelab_registry_data`| Tailscale-private (port bound to `${TAILSCALE_IP}`) |
+| home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | Tailscale-first (host net → also on LAN) |
 
 `100.65.77.63:30500` (`${REGISTRY_HOST}`) is the one canonical registry address —
 there is no `registry.homelab` name. Home Assistant uses host networking for
@@ -42,7 +42,7 @@ Then, from the box over Tailscale SSH:
 
 ```bash
 ssh jun@100.65.77.63
-cd <repo>
+cd ~/homelab
 git pull && docker compose up -d
 ```
 

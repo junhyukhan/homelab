@@ -36,7 +36,7 @@ This prints a **tunnel ID** and writes a credentials JSON to
 `/etc/cloudflared`. Put the creds file there:
 
 ```bash
-cp ~/.cloudflared/<tunnel-id>.json <repo>/cloudflared/<tunnel-id>.json
+cp ~/.cloudflared/<tunnel-id>.json ~/homelab/cloudflared/<tunnel-id>.json
 ```
 
 It's gitignored (`cloudflared/*.json`) — it must never be committed.

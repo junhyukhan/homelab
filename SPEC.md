@@ -101,8 +101,8 @@ on this plane **only if a cloudflared ingress rule exists for it.**
 
 | Service        | Plane                    | Why |
 |----------------|--------------------------|-----|
-| registry       | Tailscale-private, never public | Cloudflare Access breaks `docker push` — Docker auth doesn't do OAuth browser redirects. |
-| home-assistant | Tailscale-private        | Reached only from the user's own tailnet devices; keeping it private is strictly better. |
+| registry       | Tailscale-private, never public | Cloudflare Access breaks `docker push` (no OAuth redirects). Published port is bound to `${TAILSCALE_IP}` only, so the box's home-LAN interface can't reach the unauthenticated registry. |
+| home-assistant | Tailscale-first          | No public (Cloudflare) route. Caveat: host networking binds `:8123` on *all* host interfaces, so it's also reachable on the home LAN — tighten with a host firewall or HA `trusted_networks` if that matters. |
 | cloudflared    | n/a (is the tunnel)      | — |
 | duri (planned) | undecided                | Defer with the rest of duri's spec. |
 
@@ -118,8 +118,8 @@ Four services. That's the whole homelab.
 | Service        | Image                                          | Networking          | State             | Plane             |
 |----------------|------------------------------------------------|---------------------|-------------------|-------------------|
 | cloudflared    | `cloudflare/cloudflared:latest`                | `homelab_net`       | none              | n/a (is the tunnel) |
-| registry       | `registry:2`                                   | published `30500:5000` | `registry_data` vol | Tailscale-private |
-| home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol    | Tailscale-private |
+| registry       | `registry:2`                                   | published `${TAILSCALE_IP}:30500:5000` | `registry_data` vol | Tailscale-private |
+| home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol    | Tailscale-first (host net → also LAN) |
 | duri (planned) | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`       | tbd               | decide per §Access planes |
 
 **cloudflared** — locally-managed tunnel. Runs
@@ -129,8 +129,11 @@ credentials JSON, both read-only. On `homelab_net` so it can route to other
 bridge services when a future ingress rule points at one.
 
 **registry** — `registry:2` with `REGISTRY_STORAGE_DELETE_ENABLED=true`. Volume
-`registry_data:/var/lib/registry`. Published `30500:5000`. Any service that pulls
-from the local registry declares `depends_on: [registry]` for cold-start ordering.
+`registry_data:/var/lib/registry`. Published as `${TAILSCALE_IP}:30500:5000` —
+bound to the tailnet interface, **not** `0.0.0.0`, so this unauthenticated HTTP
+registry (with delete enabled) isn't exposed on the box's home LAN. Any service
+that pulls from the local registry declares `depends_on: [registry]` for
+cold-start ordering.
 
 **home-assistant** — `network_mode: host` (required for mDNS/SSDP device
 discovery, same reason it was `hostNetwork: true` under k3s). Volume
@@ -139,6 +142,9 @@ discovery, same reason it was `hostNetwork: true` under k3s). Volume
 and accepted; HA doesn't pull from the registry or call other homelab services. A
 future service that needs to talk *to* HA reaches it at `<tailscale-ip>:8123`.
 **Do not move HA onto the bridge to "fix" this — it breaks device discovery.**
+Host networking also means `:8123` listens on every host interface (including the
+home LAN), so unlike the registry it can't be scoped to the tailnet at the compose
+layer; restrict via a host firewall or HA `trusted_networks` if that matters.
 
 **duri (planned)** — the human's own service, referenced as
 `${REGISTRY_HOST}/duri:<tag>`. Deferred until a small spec addition lands (port,
@@ -209,10 +215,12 @@ All **LOCKED** — do not re-open without asking.
   `TUNNEL_TOKEN` is **discarded**, a brand-new tunnel is created, and the DNS
   CNAMEs are re-pointed to the new tunnel ID. No `TUNNEL_TOKEN` anywhere in the
   new design. Procedure: `docs/tunnel-setup.md`.
-- **Registry over Tailscale, published `30500:5000`.** Not behind Cloudflare
+- **Registry over Tailscale, published `${TAILSCALE_IP}:30500:5000`.** Not behind Cloudflare
   Access — Docker's push auth can't do OAuth browser redirects, which would break
-  `docker push`. Tailscale is already an authenticated network. The Mac's existing
-  `insecure-registries` + `docker push <tailscale-ip>:30500/...` habits are unchanged.
+  `docker push`. Tailscale is already an authenticated network. The published port
+  is bound to `${TAILSCALE_IP}` (not `0.0.0.0`) so it stays off the home LAN. The
+  Mac's existing `insecure-registries` + `docker push <tailscale-ip>:30500/...`
+  habits are unchanged.
 - **Pattern A for own services.** Build the image on a dev machine (Mac via
   apple/container, ThinkPad via Docker), push to `${REGISTRY_HOST}`, homelab pulls
   and runs it. The homelab repo references the image; it never holds source and
