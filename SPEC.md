@@ -251,8 +251,8 @@ The human executes these; the repo only documents them.
   push to `${REGISTRY_HOST}` → add a compose block → **decide the access plane** →
   `docker compose up -d <service>`.
 - **`docs/tunnel-setup.md`** — create the locally-managed tunnel, place the creds
-  JSON on the box, add the DNS CNAME. Cross-references `plan/thinkpad-dev-gateway.md`
-  (same pattern).
+  JSON on the box, add the DNS CNAME. Same locally-managed cloudflared pattern the
+  dev-machine gateway uses (that config lives in the `config` dotfiles repo).
 
 ---
 

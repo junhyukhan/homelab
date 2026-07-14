@@ -4,9 +4,9 @@ The Compose stack uses a **locally-managed** tunnel (routes in git, no
 `TUNNEL_TOKEN`). This is a **new tunnel**, not a reconfig of the old k3s one — the
 old remote-managed `TUNNEL_TOKEN` is discarded. Run on the box.
 
-This uses the same pattern as the ThinkPad dev gateway — see
-`plan/thinkpad-dev-gateway.md` for the fuller walkthrough and the wildcard-CNAME
-variant.
+This uses the same locally-managed cloudflared pattern as the dev-machine gateway
+(whose config lives in the `config` dotfiles repo, including a wildcard-CNAME
+variant for ephemeral dev services).
 
 > The `cloudflared` service won't start until `tunnel` and `credentials-file` in
 > `cloudflared/config.yml` point at a real tunnel, so do this before
