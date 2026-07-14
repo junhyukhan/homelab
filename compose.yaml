@@ -1,0 +1,82 @@
+# Homelab stack. See SPEC.md for what each service is and why.
+#
+# Deploy loop (from the box, over Tailscale SSH):
+#   git pull && docker compose up -d
+#
+# Secrets/config not in git:
+#   .env                        — copy from .env.example, fill in
+#   cloudflared/<tunnel-id>.json — created by `cloudflared tunnel create`
+#                                  (see docs/tunnel-setup.md), gitignored
+
+name: homelab
+
+services:
+  # The tunnel. Egress-only; opens no inbound ports. Locally-managed —
+  # routes live in ./cloudflared/config.yml (git-tracked), creds JSON is
+  # human-supplied and gitignored. At migration time config.yml has no real
+  # ingress routes (everything is Tailscale-private). See SPEC.md §Access planes.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      # Mounts both config.yml and the creds JSON (read-only).
+      - ./cloudflared:/etc/cloudflared:ro
+    networks:
+      - homelab_net
+
+  # Docker registry. Tailscale-private, plain HTTP, published on host port
+  # 30500. NEVER behind Cloudflare Access — that breaks `docker push`
+  # (Docker auth can't do OAuth redirects). See SPEC.md.
+  # Addressed everywhere as ${REGISTRY_HOST} (i.e. <tailscale-ip>:30500),
+  # not by this service name.
+  registry:
+    image: registry:2
+    restart: unless-stopped
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    ports:
+      # Bound to the Tailscale IP only — NOT 0.0.0.0 — so the box's home-LAN
+      # interface can't reach this unauthenticated HTTP registry. Needs
+      # tailscale0 up before start; restart policy retries if it isn't.
+      - "${TAILSCALE_IP}:30500:5000"
+    volumes:
+      - registry_data:/var/lib/registry
+    networks:
+      - homelab_net
+
+  # Home Assistant. host networking is REQUIRED for mDNS/SSDP device
+  # discovery (same reason it was hostNetwork under k3s). Consequence: it is
+  # NOT on homelab_net and can't resolve other services by compose DNS — this
+  # is expected. Reach it at <tailscale-ip>:8123. Do NOT move it onto the
+  # bridge to "fix" this; that breaks discovery. See SPEC.md.
+  home-assistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ha_data:/config
+
+  # --- Planned: duri (the human's own service) --------------------------
+  # Referenced from the registry, never built here. Deferred until a spec
+  # addition lands (port, DB need, access plane per SPEC.md §Access planes).
+  # Uncomment and fill in when ready:
+  #
+  # duri:
+  #   image: ${REGISTRY_HOST}/duri:v1   # version/SHA tag, never :latest
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - registry                      # pulls from the local registry
+  #   networks:
+  #     - homelab_net
+  #   # ports / environment: tbd
+
+networks:
+  homelab_net:
+    driver: bridge
+
+volumes:
+  registry_data:
+  ha_data:

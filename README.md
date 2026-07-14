@@ -1,199 +1,90 @@
 # homelab
 
-Kubernetes manifests for my k3s homelab cluster, accessible only via Tailscale VPN.
+A single box that hosts long-running personal services, run with Docker Compose
+and reached over Tailscale by default. All state is in named Docker volumes; all
+config is in this repo. **[SPEC.md](SPEC.md) is the source of truth** for what runs
+and why — this README is the runbook.
 
 ## Architecture
 
 ```
-Internet → Cloudflare Tunnel → k3s cluster ← Tailscale ← Mac
+Internet → Cloudflare Edge → cloudflared tunnel ─┐
+                                                  ├─→ homelab_net → registry
+Tailnet devices → 100.65.77.63:<port> ───────────┘               → (future services)
+              └─→ 100.65.77.63:8123 ─────────────────────────────→ home-assistant (host net)
 ```
 
-- **Cluster**: Single-node k3s bound to Tailscale IP (no public/LAN exposure)
-- **External access**: Cloudflare Tunnel for public services
-- **Internal access**: Tailscale VPN + NodePorts
+- **The box:** i7-7th-gen laptop, 8 GB RAM, Debian, headless, on Tailscale.
+- **Two ways in, no inbound ports:** Tailscale (the default — being on the tailnet
+  *is* the auth) and a cloudflared tunnel (egress-only, for consciously-public
+  services behind Cloudflare Access). See [SPEC.md](SPEC.md) §Access planes.
 
-## Directory Structure
+## Services
 
-```
-homelab/
-├── infrastructure/     # Critical services (cloudflared, gitea, home-assistant)
-├── operations/         # Dev tools (registry)
-├── observability/      # Monitoring (k3s-dashboard)
-└── kustomization.yaml  # Root aggregator
-```
+| Service        | Address / port         | State (volume)         | Plane             |
+|----------------|------------------------|------------------------|-------------------|
+| cloudflared    | — (the tunnel)         | none                   | n/a               |
+| registry       | `100.65.77.63:30500`   | `homelab_registry_data`| Tailscale-private (port bound to `${TAILSCALE_IP}`) |
+| home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | Tailscale-first (host net → also on LAN) |
 
-## Quick Reference
+`100.65.77.63:30500` (`${REGISTRY_HOST}`) is the one canonical registry address —
+there is no `registry.homelab` name. Home Assistant uses host networking for
+mDNS/SSDP discovery, so it's reached on the host IP directly, not via the bridge.
 
-### Exposed Ports (via `<tailscale-ip>:<port>`)
+## Quick start
 
-| Port  | Service             | Namespace      | Type       |
-|-------|---------------------|----------------|------------|
-| 30800 | k3s-dashboard       | observability  | NodePort   |
-| 30500 | docker-registry     | operations     | NodePort   |
-| 30123 | home-assistant      | infrastructure | NodePort   |
-| 8123  | home-assistant¹     | infrastructure | hostNetwork|
-| 3000  | gitea (HTTP)        | infrastructure | NodePort   |
-| 2222  | gitea (SSH)         | infrastructure | NodePort   |
-| 2000  | cloudflared metrics | infrastructure | NodePort   |
+Config not in git, set up once (see the runbooks below):
 
-¹ Home Assistant uses `hostNetwork: true` for mDNS/SSDP device discovery, so
-`:8123` is bound directly on the host — not via a Kubernetes Service. `:30123`
-is the regular NodePort Service and is the canonical in-cluster address.
+- `.env` — copy from `.env.example`, fill in.
+- `cloudflared/<tunnel-id>.json` — the tunnel credentials (`docs/tunnel-setup.md`).
 
-### Deploy Commands
+Then, from the box over Tailscale SSH:
 
 ```bash
-# Deploy everything (--enable-helm required for Gitea's Helm chart)
-kustomize build --enable-helm . | kubectl apply -f -
-
-# Deploy a specific layer
-kustomize build --enable-helm infrastructure/ | kubectl apply -f -
-kubectl apply -k operations/
-kubectl apply -k observability/
-
-# Deploy a specific service
-kubectl apply -k observability/k3s-dashboard/
-
-# Restart a deployment
-kubectl rollout restart deployment <name> -n <namespace>
+ssh jun@100.65.77.63
+cd ~/homelab
+git pull && docker compose up -d
 ```
 
-### Common Operations
+## Day-to-day
 
 ```bash
-# Switch to k3s context
-kubectl config use-context homeserver
-
-# View all pods
-kubectl get pods -A
-
-# View pods in a namespace
-kubectl get pods -n observability
-
-# Check logs
-kubectl logs -n <namespace> deployment/<name>
-kubectl logs -n <namespace> <pod-name>
-
-# Debug a pod
-kubectl describe pod -n <namespace> <pod-name>
-
-# Delete and recreate (when stuck)
-kubectl delete deployment <name> -n <namespace>
-kubectl apply -k <path>/
+docker compose ps                     # what's running
+docker compose logs -f <service>      # tail logs
+docker compose up -d                  # apply compose.yaml changes / pull updates
+docker compose restart <service>      # e.g. after editing cloudflared/config.yml
+docker compose pull && docker compose up -d   # update images
+docker compose down                   # stop the stack (volumes persist)
 ```
 
----
-
-## Setup Guide
-
-### 1. Server Setup (k3s node)
+The deploy loop is intentionally manual: **SSH in, `git pull`, `docker compose
+up -d`.** There's no remote control plane. Optionally you can drive it from the Mac
+without exposing the daemon:
 
 ```bash
-curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="server \
-  --node-ip <tailscale-ip> \
-  --flannel-iface tailscale0 \
-  --tls-san <tailscale-ip>" sh -
+docker context create homelab --docker "host=ssh://jun@100.65.77.63"
+docker --context homelab compose up -d
 ```
 
-| Flag | Purpose |
-|------|---------|
-| `--node-ip` | Bind to Tailscale IP (stable) |
-| `--flannel-iface` | Route pod traffic through VPN |
-| `--tls-san` | Allow remote kubectl via VPN IP |
+## Adding / changing services
 
-### 2. Client Setup (Mac)
+- **Add a service:** `docs/add-a-service.md` (build on a dev machine → push to the
+  registry → compose block → **decide the access plane** → `up -d`). Own images use
+  version/SHA tags, never `:latest`.
+- **Expose something publicly:** add a cloudflared ingress rule + DNS CNAME +
+  Cloudflare Access policy. Default is Tailscale-private; public is opt-in per
+  service. See [SPEC.md](SPEC.md) §Access planes.
 
-Copy `/etc/rancher/k3s/k3s.yaml` from server to `~/.kube/k3s-config`.
-Change `server: https://127.0.0.1:6443` to `server: https://<tailscale-ip>:6443`.
+Whenever a permanent service changes, update [SPEC.md](SPEC.md) first, then the code.
 
-Add to `~/.zshrc`:
-```bash
-export KUBECONFIG=~/.kube/config:~/.kube/k3s-config
-```
+## Runbooks
 
-Switch contexts:
-```bash
-kubectl config use-context orbstack     # local
-kubectl config use-context homeserver   # k3s (rename from 'default')
-kubectl config rename-context default homeserver
-```
+| Doc | What |
+|-----|------|
+| [SPEC.md](SPEC.md) | Source of truth: goals, architecture, decisions |
+| [docs/cleanup-k3s.md](docs/cleanup-k3s.md) | One-time k3s → Docker teardown (gated on a verified backup) |
+| [docs/data-migration.md](docs/data-migration.md) | Restore PVC data into the named volumes |
+| [docs/tunnel-setup.md](docs/tunnel-setup.md) | Create the locally-managed cloudflared tunnel |
+| [docs/add-a-service.md](docs/add-a-service.md) | Steady-state workflow for new services |
 
-### 3. Registry Setup (for pushing images)
-
-Add to Docker Desktop settings (Settings → Docker Engine):
-```json
-{
-  "insecure-registries": ["<tailscale-ip>:30500"]
-}
-```
-
-Push images:
-```bash
-docker build -t <tailscale-ip>:30500/myapp:latest .
-docker push <tailscale-ip>:30500/myapp:latest
-```
-
----
-
-## Concepts
-
-### Namespaces vs Contexts
-
-| | Namespaces | Contexts |
-|--|------------|----------|
-| **Where** | Server (cluster) | Client (~/.kube/config) |
-| **What** | Resource isolation | Cluster + user + default namespace |
-| **Analogy** | Rooms in a building | ID badge for the building |
-
-### Labels in deployment.yaml
-
-```yaml
-metadata:
-  labels:
-    app: myapp        # 1. Labels the Deployment (optional)
-spec:
-  selector:
-    matchLabels:
-      app: myapp      # 2. "Hiring criteria" (MUST match #3)
-  template:
-    metadata:
-      labels:
-        app: myapp    # 3. Pod label (MUST match #2)
-```
-
----
-
-## Debugging Cheatsheet
-
-```bash
-# Pod won't start?
-kubectl describe pod -n <ns> <pod>    # Check Events section
-kubectl logs -n <ns> <pod>            # Check startup logs
-
-# Image pull issues?
-kubectl get events -n <ns> --sort-by='.lastTimestamp'
-
-# Service not reachable?
-kubectl get svc -n <ns>               # Check ClusterIP/NodePort
-kubectl get endpoints -n <ns>         # Check if pods are backing it
-
-# Restart everything in a namespace
-kubectl rollout restart deployment -n <ns> --all
-```
-
-## Secrets
-
-```bash
-# Create secret from literal
-kubectl create secret generic my-secret \
-  --from-literal=KEY=value \
-  -n <namespace>
-
-# Create secret from file
-kubectl create secret generic my-secret \
-  --from-file=.env \
-  -n <namespace>
-
-# View decoded secret
-kubectl get secret <name> -n <ns> -o jsonpath='{.data.KEY}' | base64 -d
-```
+The pre-migration k3s manifests are preserved on the **`legacy-k3s`** branch.

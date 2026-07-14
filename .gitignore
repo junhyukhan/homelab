@@ -1,3 +1,10 @@
+# Secrets — never commit
 .env
+
+# cloudflared tunnel credentials (created by `cloudflared tunnel create`,
+# named <tunnel-id>.json). Scoped on purpose — do NOT blanket-ignore *.json;
+# a config/compose tool may legitimately want a tracked JSON later.
+cloudflared/*.json
+
+# OS cruft
 .DS_Store
-charts/
