@@ -250,11 +250,10 @@ scope, and it has a bootstrap problem.
 
 The human executes these; the repo only documents them.
 
-- **`docs/cleanup-k3s.md`** — ordered, gated teardown of k3s: back up PVC data,
-  human-verify the backup, uninstall k3s, install Docker, set the box's own
-  `insecure-registries`, clean the Mac's kubeconfig.
-- **`docs/data-migration.md`** — move backed-up volume data into named Docker
-  volumes via a temp Alpine container; verify ownership vs `PUID`/`PGID`.
+- **`docs/bootstrap.md`** — stand up the box from a clean Debian install to a
+  running stack: base packages, Tailscale (new node → new IP), SSH, Docker,
+  `insecure-registries`, clone the repo, bring up the stack (HA fresh, registry
+  empty), and clean the Mac's old k3s kubeconfig.
 - **`docs/add-a-service.md`** — steady-state workflow: build on a dev machine →
   push to `${REGISTRY_HOST}` → add a compose block → **decide the access plane** →
   `docker compose up -d <service>`.
@@ -266,9 +265,5 @@ The human executes these; the repo only documents them.
 
 ## Open questions
 
-- Exact PVC directory names under `/var/lib/rancher/k3s/storage/` (HA vs
-  registry) — read off the box; the cleanup runbook explains how to identify them.
 - `duri` specifics: port, DB need, and access plane. Deferred until a spec
   addition lands.
-- Whether the registry needs any data restored at all, or if every image is
-  rebuildable from source and can simply be re-pushed.
