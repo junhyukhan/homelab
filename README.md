@@ -82,8 +82,7 @@ Whenever a permanent service changes, update [SPEC.md](SPEC.md) first, then the 
 | Doc | What |
 |-----|------|
 | [SPEC.md](SPEC.md) | Source of truth: goals, architecture, decisions |
-| [docs/cleanup-k3s.md](docs/cleanup-k3s.md) | One-time k3s → Docker teardown (gated on a verified backup) |
-| [docs/data-migration.md](docs/data-migration.md) | Restore PVC data into the named volumes |
+| [docs/bootstrap.md](docs/bootstrap.md) | Stand up the box from a clean Debian install to a running stack |
 | [docs/tunnel-setup.md](docs/tunnel-setup.md) | Create the locally-managed cloudflared tunnel |
 | [docs/add-a-service.md](docs/add-a-service.md) | Steady-state workflow for new services |
 
