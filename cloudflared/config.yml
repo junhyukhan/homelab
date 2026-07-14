@@ -1,0 +1,27 @@
+# Locally-managed cloudflared tunnel config. Git-tracked on purpose — routes
+# belong in the repo. See SPEC.md §Decisions and docs/tunnel-setup.md.
+#
+# `tunnel` and `credentials-file` are filled in during tunnel setup:
+#   - tunnel: the tunnel NAME or ID from `cloudflared tunnel create`
+#   - credentials-file: the JSON path INSIDE the container. The ./cloudflared
+#     directory is mounted read-only at /etc/cloudflared (see compose.yaml),
+#     and the creds JSON (cloudflared/<tunnel-id>.json) is gitignored.
+
+tunnel: <TUNNEL_NAME_OR_ID>
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+
+# Ingress: hostname → local service routing.
+#
+# At migration time there are NO real routes — everything the homelab runs is
+# Tailscale-private (registry and Home Assistant are both intentionally private;
+# routing the registry through Cloudflare would break `docker push`). A public
+# route is a conscious, additive choice per service — see SPEC.md §Access planes
+# and docs/add-a-service.md. Never add one speculatively.
+ingress:
+  # Worked example of a future public route (KEEP COMMENTED until needed).
+  # Adding one also requires a DNS CNAME + a Cloudflare Access policy:
+  # - hostname: something.${BASE_DOMAIN}
+  #   service: http://cloudflared_reachable_service:PORT
+
+  # Required catch-all: 404 for any unmatched hostname. Must be last.
+  - service: http_status:404
