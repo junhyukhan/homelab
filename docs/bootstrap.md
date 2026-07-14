@@ -89,8 +89,9 @@ BASE_DOMAIN=<your-domain>        # only used once you expose a public route
 Nothing is public at first, and the `cloudflared` service will crash-loop without a
 valid tunnel. Pick one:
 
-- **Defer (simplest):** comment out the whole `cloudflared:` service in
-  `compose.yaml`. Add it back the day you expose something.
+- **Defer (simplest):** just don't start `cloudflared` yet — bring up only the
+  other services (step 8). No file edit needed; add the tunnel the day you expose
+  something.
 - **Set it up now:** follow `docs/tunnel-setup.md` (create the tunnel, drop the
   creds JSON in `~/homelab/cloudflared/<tunnel-id>.json`, fill `config.yml`).
 
@@ -98,7 +99,13 @@ valid tunnel. Pick one:
 
 ```bash
 cd ~/homelab
+
+# Deferring the tunnel — start only registry + HA (cloudflared stays down, no crash-loop):
+docker compose up -d registry home-assistant
+
+# OR, if you set the tunnel up in step 7 — start everything:
 docker compose up -d
+
 docker compose ps
 ```
 
