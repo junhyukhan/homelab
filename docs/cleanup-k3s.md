@@ -57,15 +57,23 @@ This removes k3s, its bundled containerd, kubelet state, and the systemd unit. I
 does **not** touch the PVC data on disk (that's why step 1 exists) and does **not**
 touch anything on the Mac (that's step 5).
 
-## 4. Install Docker
+## 4. Docker (already installed — just verify)
+
+As of the last recon this box already has Docker 29.3.1 + the Compose v5.1.1
+plugin, and `jun` is already in the `docker` group. So this is a verification step,
+not an install:
+
+```bash
+docker ps            # works without sudo?  (group membership already set)
+docker compose version
+```
+
+If for some reason Docker is missing on a fresh box, install it and add the group:
 
 ```bash
 curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
+sudo usermod -aG docker $USER      # then log out/in (or `newgrp docker`)
 ```
-
-Log out and back in (or `newgrp docker`) so the group membership takes effect, then
-confirm `docker ps` works without sudo.
 
 ## 4b. Trust the registry over HTTP on the box's own daemon
 
