@@ -51,26 +51,19 @@ consequence documented for HA in SPEC.md.
 Decision pending: whether to run Whisper on CPU (slow, simple) or pick a host with
 a GPU (adds complexity). Fine to start CPU-only — the box has no GPU.
 
-### 3. Post-onboarding hardening: bind HA only to Tailscale
+### 3. ~~Bind HA only to Tailscale~~ — decided against
 
-Today HA is reachable on **every** host interface because of `network_mode: host`
-(SPEC.md and the README both flag this — `:8123` is also on the home LAN). After
-onboarding is complete, add this to HA's `/config/configuration.yaml` (inside the
-`ha_data` volume) to restrict it to the Tailscale interface:
+HA is reachable on **every** host interface because of `network_mode: host`, which
+means it's on both the home LAN and the tailnet. This is **intended**: housemates
+use it on the LAN, the human reaches it over Tailscale when off-network. It's never
+public.
 
-```yaml
-http:
-  server_host: 100.65.77.63   # ${TAILSCALE_IP}
-```
-
-Then `docker compose restart home-assistant`.
-
-Don't do this before onboarding — `server_host` restricts which network interface
-HA listens on. Setting it to the Tailscale IP before onboarding stops HA from
-responding on the LAN interface your browser may be using to reach the wizard.
-Verify your browser can reach HA via the Tailscale IP before restricting. Also
-worth considering: `trusted_proxies` / `use_x_forwarded_for` if we ever put an
-ingress in front (see #7).
+So do **not** add `http: server_host:` to `/config/configuration.yaml` — that binds
+HA to a single interface and would break the LAN access that's wanted here. This
+item is kept only as a signpost so the LAN exposure isn't mistaken for an oversight
+and "hardened" away. See the plane assignment in SPEC.md. (`trusted_proxies` /
+`use_x_forwarded_for` would only matter if an ingress were ever put in front — see
+#7 — which isn't planned.)
 
 ### 4. Image version pinning
 

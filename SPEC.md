@@ -102,7 +102,7 @@ on this plane **only if a cloudflared ingress rule exists for it.**
 | Service        | Plane                    | Why |
 |----------------|--------------------------|-----|
 | registry       | Tailscale-private, never public | Cloudflare Access breaks `docker push` (no OAuth redirects). Published port is bound to `${TAILSCALE_IP}` only, so the box's home-LAN interface can't reach the unauthenticated registry. |
-| home-assistant | Tailscale-first          | No public (Cloudflare) route. Caveat: host networking binds `:8123` on *all* host interfaces, so it's also reachable on the home LAN — tighten with a host firewall or HA `trusted_networks` if that matters. |
+| home-assistant | LAN + Tailscale (intentional), never public | Reachable from both the home LAN and the tailnet, on purpose — housemates use it on the LAN, the human reaches it off-network over Tailscale. Host networking binds `:8123` on all host interfaces, which is exactly what's wanted here. No public (Cloudflare) route. Do **not** scope it to the tailnet with `server_host` / a firewall — that would break intended LAN access. |
 | cloudflared    | n/a (is the tunnel)      | — |
 | duri (planned) | undecided                | Defer with the rest of duri's spec. |
 
@@ -119,7 +119,7 @@ Four services. That's the whole homelab.
 |----------------|------------------------------------------------|---------------------|-------------------|-------------------|
 | cloudflared    | `cloudflare/cloudflared:latest`                | `homelab_net`       | none              | n/a (is the tunnel) |
 | registry       | `registry:2`                                   | published `${TAILSCALE_IP}:30500:5000` | `registry_data` vol | Tailscale-private |
-| home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol    | Tailscale-first (host net → also LAN) |
+| home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol    | LAN + Tailscale (intentional), never public |
 | duri (planned) | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`       | tbd               | decide per §Access planes |
 
 **cloudflared** — locally-managed tunnel. Runs
@@ -142,9 +142,11 @@ discovery, same reason it was `hostNetwork: true` under k3s). Volume
 and accepted; HA doesn't pull from the registry or call other homelab services. A
 future service that needs to talk *to* HA reaches it at `<tailscale-ip>:8123`.
 **Do not move HA onto the bridge to "fix" this — it breaks device discovery.**
-Host networking also means `:8123` listens on every host interface (including the
-home LAN), so unlike the registry it can't be scoped to the tailnet at the compose
-layer; restrict via a host firewall or HA `trusted_networks` if that matters.
+Host networking also means `:8123` listens on every host interface, including the
+home LAN — and that's **intended**: HA is meant to be reachable both on the home LAN
+(for housemates) and over Tailscale (for the human off-network). It is never public.
+Do **not** scope it to the tailnet with `server_host` or a host firewall — that
+would break the intended LAN access.
 
 **duri (planned)** — the human's own service, referenced as
 `${REGISTRY_HOST}/duri:<tag>`. Deferred until a small spec addition lands (port,

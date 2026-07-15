@@ -25,7 +25,7 @@ Tailnet devices → 100.65.77.63:<port> ───────────┘    
 |----------------|------------------------|------------------------|-------------------|
 | cloudflared    | — (the tunnel)         | none                   | n/a               |
 | registry       | `100.65.77.63:30500`   | `homelab_registry_data`| Tailscale-private (port bound to `${TAILSCALE_IP}`) |
-| home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | Tailscale-first (host net → also on LAN) |
+| home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | LAN + Tailscale (intentional), never public |
 
 `100.65.77.63:30500` (`${REGISTRY_HOST}`) is the one canonical registry address —
 there is no `registry.homelab` name. Home Assistant uses host networking for
