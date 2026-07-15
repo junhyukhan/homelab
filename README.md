@@ -10,7 +10,8 @@ and why — this README is the runbook.
 ```
 Internet → Cloudflare Edge → cloudflared tunnel ─┐
                                                   ├─→ homelab_net → registry
-Tailnet devices → 100.65.77.63:<port> ───────────┘               → (future services)
+Tailnet devices → 100.65.77.63:30500 ────────────┤               → duri → Supabase cloud (egress)
+              ├─→ 100.65.77.63:3000 ──────────────┘
               └─→ 100.65.77.63:8123 ─────────────────────────────→ home-assistant (host net)
 ```
 
@@ -26,6 +27,7 @@ Tailnet devices → 100.65.77.63:<port> ───────────┘    
 | cloudflared    | — (the tunnel)         | none                   | n/a               |
 | registry       | `100.65.77.63:30500`   | `homelab_registry_data`| Tailscale-private (port bound to `${TAILSCALE_IP}`) |
 | home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | LAN + Tailscale (intentional), never public |
+| duri           | `100.65.77.63:3000`    | none (data in Supabase cloud) | Tailscale-private (port bound to `${TAILSCALE_IP}`) |
 
 `100.65.77.63:30500` (`${REGISTRY_HOST}`) is the one canonical registry address —
 there is no `registry.homelab` name. Home Assistant uses host networking for

@@ -59,19 +59,31 @@ services:
     volumes:
       - ha_data:/config
 
-  # --- Planned: duri (the human's own service) --------------------------
-  # Referenced from the registry, never built here. Deferred until a spec
-  # addition lands (port, DB need, access plane per SPEC.md §Access planes).
-  # Uncomment and fill in when ready:
+  # duri — the human's couples-finance app (Next.js). Runs as a stateless
+  # artifact per SPEC Pattern A: built on a dev machine, pushed to the registry,
+  # pulled here. Its DB/auth/realtime/storage live in Supabase cloud, NOT on this
+  # box — so no volume. Tailscale-private (no cloudflared ingress); both partners
+  # reach it over Tailscale, same as Home Assistant. See SPEC.md §Services.
   #
-  # duri:
-  #   image: ${REGISTRY_HOST}/duri:v1   # version/SHA tag, never :latest
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - registry                      # pulls from the local registry
-  #   networks:
-  #     - homelab_net
-  #   # ports / environment: tbd
+  # Bring up only after the image exists: build+push from a dev machine, then
+  # `docker compose up -d duri`. Won't start until ${REGISTRY_HOST}/duri:${DURI_TAG}
+  # is pullable.
+  duri:
+    image: ${REGISTRY_HOST}/duri:${DURI_TAG}   # version/SHA tag, never :latest
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    # Server-only app secrets (Supabase service-role key, DATABASE_URL, Anthropic
+    # key) — gitignored, kept OUT of the shared .env. The NEXT_PUBLIC_* Supabase
+    # URL + anon key are baked into the image at build time, not set here.
+    env_file:
+      - duri.env
+    ports:
+      # Bound to the Tailscale IP only — never 0.0.0.0 — so it stays off the home
+      # LAN. Next serves on 3000 in-container.
+      - "${TAILSCALE_IP}:3000:3000"
+    networks:
+      - homelab_net
 
 networks:
   homelab_net:

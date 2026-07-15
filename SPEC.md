@@ -38,7 +38,8 @@ Status: post-migration target state (k3s → Docker Compose).
 ```
 Internet → Cloudflare Edge → cloudflared tunnel ─┐
                                                   ├─→ homelab_net (bridge) → registry
-Tailnet devices ──→ <tailscale-ip>:<port> ───────┘                        → (future services)
+Tailnet devices ──→ <tailscale-ip>:30500 ────────┤                        → duri ──→ Supabase cloud (egress)
+                ├─→ <tailscale-ip>:3000 ──────────┘
                 └─→ <tailscale-ip>:8123 ────────────────────────────────→ home-assistant (host net)
 ```
 
@@ -104,7 +105,7 @@ on this plane **only if a cloudflared ingress rule exists for it.**
 | registry       | Tailscale-private, never public | Cloudflare Access breaks `docker push` (no OAuth redirects). Published port is bound to `${TAILSCALE_IP}` only, so the box's home-LAN interface can't reach the unauthenticated registry. |
 | home-assistant | LAN + Tailscale (intentional), never public | Reachable from both the home LAN and the tailnet, on purpose — housemates use it on the LAN, the human reaches it off-network over Tailscale. Host networking binds `:8123` on all host interfaces, which is exactly what's wanted here. No public (Cloudflare) route. Do **not** scope it to the tailnet with `server_host` / a firewall — that would break intended LAN access. |
 | cloudflared    | n/a (is the tunnel)      | — |
-| duri (planned) | undecided                | Defer with the rest of duri's spec. |
+| duri           | Tailscale-private, never public | Personal two-person app; both partners reach it over Tailscale (same as HA). Published port is bound to `${TAILSCALE_IP}` only. Its Supabase-cloud backend is reached by egress — nothing inbound but the tailnet-bound port. A public route is a possible future upgrade (cloudflared ingress), not the current design. |
 
 At migration time the ingress list has **no real routes** — only a commented
 example and the `http_status:404` catch-all. Nothing currently needs a public door.
@@ -120,7 +121,7 @@ Four services. That's the whole homelab.
 | cloudflared    | `cloudflare/cloudflared:latest`                | `homelab_net`       | none              | n/a (is the tunnel) |
 | registry       | `registry:2`                                   | published `${TAILSCALE_IP}:30500:5000` | `registry_data` vol | Tailscale-private |
 | home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol    | LAN + Tailscale (intentional), never public |
-| duri (planned) | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`       | tbd               | decide per §Access planes |
+| duri           | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`, published `${TAILSCALE_IP}:3000:3000` | none (stateless; data in Supabase cloud) | Tailscale-private |
 
 **cloudflared** — locally-managed tunnel. Runs
 `tunnel --no-autoupdate --config /etc/cloudflared/config.yml run`. Mounts the
@@ -148,10 +149,19 @@ home LAN — and that's **intended**: HA is meant to be reachable both on the ho
 Do **not** scope it to the tailnet with `server_host` or a host firewall — that
 would break the intended LAN access.
 
-**duri (planned)** — the human's own service, referenced as
-`${REGISTRY_HOST}/duri:<tag>`. Deferred until a small spec addition lands (port,
-DB need, access plane). Don't scaffold beyond a commented placeholder; don't add a
-cloudflared ingress rule for it by default.
+**duri** — the human's couples-finance app (Next.js PWA), referenced as
+`${REGISTRY_HOST}/duri:<tag>`. Built on a dev machine and pushed to the registry per
+Pattern A; the box only runs it. **Stateless on the box:** its database, auth
+(Supabase Auth + Postgres RLS), realtime, and file storage all live in **Supabase
+cloud** (Seoul), reached by egress — so duri has **no local volume**. Published on
+`${TAILSCALE_IP}:3000:3000` (Next serves on `3000` in-container), bound to the
+tailnet interface only. **Tailscale-private:** both partners reach it over Tailscale,
+the same way they reach Home Assistant — **no cloudflared ingress**. Server-only
+secrets (Supabase service-role key, `DATABASE_URL`, Anthropic key) come from a
+gitignored `duri.env` consumed via `env_file` (kept out of the shared `.env`); the
+`NEXT_PUBLIC_*` Supabase URL + anon key are baked into the image at build time and
+so aren't runtime env here. Going public later is an additive cloudflared ingress +
+Cloudflare Access decision — not designed in now.
 
 ### Anticipated future services (not built now)
 
@@ -170,9 +180,10 @@ in a way that forecloses them.
   no orchestrator, no on-box builds, and keeping the service count small.
 - **Volume ownership.** State lives in named volumes (`registry_data`, `ha_data`).
   When restoring data into them, file ownership must match `PUID`/`PGID`.
-- **Secrets.** `.env` (gitignored) and the cloudflared credentials JSON
-  (human-supplied, gitignored) never enter git. The repo ships `.env.example`
-  only. There is **no `TUNNEL_TOKEN`** in the new design (see Decisions).
+- **Secrets.** `.env` (gitignored), the per-app `duri.env` (gitignored), and the
+  cloudflared credentials JSON (human-supplied, gitignored) never enter git. The repo
+  ships `.env.example` only. There is **no `TUNNEL_TOKEN`** in the new design (see
+  Decisions).
 - **Registry is plain HTTP over Tailscale.** Every Docker host that pulls from it
   — including the homelab itself — needs it in `insecure-registries`.
 
@@ -185,6 +196,12 @@ in a way that forecloses them.
 | `BASE_DOMAIN`   | (human's domain)       | reserved — used by cloudflared ingress hostnames once a public route exists |
 | `PUID`          | e.g. `1000`            | reserved — forward-looking for future services; **not** consumed by registry/HA (they run as root) |
 | `PGID`          | e.g. `1000`            | reserved — as above |
+| `DURI_TAG`      | e.g. `v1` / git SHA    | duri image tag in `${REGISTRY_HOST}/duri:${DURI_TAG}`; never `:latest` |
+
+duri's own **application** secrets (Supabase service-role key, `DATABASE_URL`,
+`ANTHROPIC_API_KEY`) do **not** live in the shared `.env`. They sit in a separate
+gitignored `duri.env` consumed by that service's `env_file`, so app secrets stay
+scoped to the app. The shared `.env` only carries `DURI_TAG` (the image reference).
 
 `REGISTRY_HOST` is this repo's addition to the originally-scoped key set
 (`PUID`, `PGID`, `TZ`, `BASE_DOMAIN`), so the canonical registry address is
@@ -267,5 +284,7 @@ The human executes these; the repo only documents them.
 
 ## Open questions
 
-- `duri` specifics: port, DB need, and access plane. Deferred until a spec
-  addition lands.
+- None currently. (duri's port / DB / access plane are resolved: a stateless
+  container with a Supabase-cloud backend, Tailscale-private on `:3000` — see
+  §Services. Making duri public later is a known, additive cloudflared decision, not
+  an open design question.)

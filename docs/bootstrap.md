@@ -103,11 +103,16 @@ cd ~/homelab
 # Deferring the tunnel — start only registry + HA (cloudflared stays down, no crash-loop):
 docker compose up -d registry home-assistant
 
-# OR, if you set the tunnel up in step 7 — start everything:
-docker compose up -d
+# OR, if you set the tunnel up in step 7 — add cloudflared:
+docker compose up -d cloudflared registry home-assistant
 
 docker compose ps
 ```
+
+Bring services up **by name**, not a bare `docker compose up -d`. The `duri` service
+references an image that doesn't exist on a fresh box (it's built and pushed from a
+dev machine later — `docs/add-a-service.md`), so a blanket `up -d` would fail trying
+to pull it. Add `duri` once its image is in the registry.
 
 - **Home Assistant** → open `http://<TS_IP>:8123` and do first-run onboarding fresh.
 - **Registry** → starts empty. Push images as you build them (`docs/add-a-service.md`);
