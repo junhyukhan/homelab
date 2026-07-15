@@ -6,12 +6,25 @@ for the private/public model this checklist encodes.
 ## 1. Build on a dev machine (not the box)
 
 The box runs artifacts, it doesn't build them (Pattern A, SPEC.md). Build on the
-Mac (`apple/container`) or ThinkPad (Docker), tagged with a **version or git-SHA
-tag — never `:latest`** (`:latest` won't re-pull reliably on `up -d`):
+Mac or ThinkPad, tagged with a **version or git-SHA tag — never `:latest`**
+(`:latest` won't re-pull reliably on `up -d`).
+
+**Match the box's architecture.** The box is `linux/amd64`. The ThinkPad is amd64,
+so a plain `docker build` is fine there. The **Apple Silicon Mac is arm64** — a plain
+`docker build` produces an arm64 image that the box can't exec (`exec format error`,
+crash-loop). From the Mac, always cross-build for amd64:
 
 ```bash
+# ThinkPad (native amd64):
 docker build -t 100.65.77.63:30500/myapp:v1 .
+
+# Apple Silicon Mac — cross-build for the box's arch, load locally, then push:
+docker buildx build --platform linux/amd64 --load -t 100.65.77.63:30500/myapp:v1 .
 ```
+
+(`--load` imports the result into the local daemon so the next `docker push` goes
+through the daemon that trusts the insecure registry; buildx's own `--push` would
+need the registry marked insecure for the builder separately.)
 
 `100.65.77.63:30500` is `${REGISTRY_HOST}` — the one canonical registry address
 (see SPEC.md). There is no `registry.homelab` hostname.
