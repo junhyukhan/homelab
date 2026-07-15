@@ -84,6 +84,15 @@ REGISTRY_HOST=<TS_IP>:30500
 BASE_DOMAIN=<your-domain>        # only used once you expose a public route
 ```
 
+These env files sit in **plaintext** on the box (this is the deliberate, small-scale
+choice — see SPEC.md §Secrets). Lock them to owner-only so other accounts can't read
+them:
+```bash
+chmod 600 .env
+```
+Do the same for any per-app secret file you create later (e.g. `duri.env` — see
+`docs/add-a-service.md`).
+
 ## 7. cloudflared tunnel — set up now, or defer
 
 Nothing is public at first, and the `cloudflared` service will crash-loop without a

@@ -40,6 +40,18 @@ In `compose.yaml`, referencing the pushed image:
     # ports / environment as needed
 ```
 
+**Secrets (if the service needs any):** don't put app secrets in the shared `.env`.
+Give the service its own gitignored `<service>.env` (add it to `.gitignore`, ship a
+`<service>.env.example` template) and load it via `env_file`, then lock it to
+owner-only — these files are **plaintext on the box** (SPEC.md §Secrets):
+
+```bash
+cp myapp.env.example myapp.env   # then fill in the real values
+chmod 600 myapp.env
+```
+
+The shared `.env` should only carry non-secret config and image tags (e.g. `DURI_TAG`).
+
 ## 4. Decide the access plane — **explicit checklist, not an afterthought**
 
 Ask one question: *do I need to reach this from a device that isn't on my tailnet,
