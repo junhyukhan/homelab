@@ -90,12 +90,17 @@ run "ssh -o BatchMode=yes -o ConnectTimeout=10 -i '$BOX_SSH_KEY' '$BOX_HOST' \
 
 # --- 5. verify the running commit --------------------------------------------
 if [[ $DRY_RUN == 1 ]]; then say "dry-run: skipping verify."; exit 0; fi
-say "Verifying $BOX_URL/api/version reports $TAG…"
+say "Verifying $BOX_URL/api/version reports ${TAG}…"
 for i in $(seq 1 10); do
   live="$(curl -s -m 5 "$BOX_URL/api/version" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' || true)"
   if [[ "$live" == "$TAG" ]]; then
     printf '\n\033[1;32m✓ deployed — %s is live at %s\033[0m\n' "$TAG" "$BOX_URL"
-    prev="$(git -C "$HOMELAB_DIR" log -2 --format=%s -- compose.yaml | sed -n '2p' | sed 's/deploy(duri): //')"
+    # Previous distinct pinned tag = rollback target. Read from compose.yaml's own
+    # history (the inline image line), not commit subjects — the first pin may have
+    # ridden in on an unrelated commit.
+    prev="$(git -C "$HOMELAB_DIR" log --format=%H -- compose.yaml | while read -r c; do
+      git show "$c:compose.yaml" 2>/dev/null | sed -n 's#^[[:space:]]*image:.*duri:\([^ ]*\).*#\1#p' | head -1
+    done | awk -v cur="$TAG" '$0 && $0!=cur {print; exit}')"
     [[ -n "$prev" ]] && echo "  rollback: scripts/deploy-duri.sh --tag $prev"
     exit 0
   fi
