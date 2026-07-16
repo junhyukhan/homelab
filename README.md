@@ -72,7 +72,10 @@ docker --context homelab compose up -d
 
 - **Add a service:** `docs/add-a-service.md` (build on a dev machine → push to the
   registry → compose block → **decide the access plane** → `up -d`). Own images use
-  version/SHA tags, never `:latest`.
+  version/SHA tags, pinned inline in `compose.yaml`, never `:latest`.
+- **Deploy/update duri** (the one build-on-dev app): `./scripts/deploy-duri.sh`
+  from the Mac — one command does build → push → pin → reconcile → verify. Roll
+  back with `--tag <old-sha>`. See SPEC.md §Deploy and the `deploy-duri` skill.
 - **Expose something publicly:** add a cloudflared ingress rule + DNS CNAME +
   Cloudflare Access policy. Default is Tailscale-private; public is opt-in per
   service. See [SPEC.md](SPEC.md) §Access planes.

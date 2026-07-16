@@ -65,11 +65,13 @@ services:
   # box — so no volume. Tailscale-private (no cloudflared ingress); both partners
   # reach it over Tailscale, same as Home Assistant. See SPEC.md §Services.
   #
-  # Bring up only after the image exists: build+push from a dev machine, then
-  # `docker compose up -d duri`. Won't start until ${REGISTRY_HOST}/duri:${DURI_TAG}
-  # is pullable.
+  # The deployed version is PINNED INLINE here (git SHA, never :latest), like
+  # every other service — the tag lives in git, so `git blame`/`git revert` are
+  # the deploy log and rollback. The `scripts/deploy-duri.sh` one-command deploy
+  # bumps this line, pushes, and reconciles the box. Bring up only after the
+  # image exists (the script builds+pushes first). See SPEC.md §Deploy.
   duri:
-    image: ${REGISTRY_HOST}/duri:${DURI_TAG}   # version/SHA tag, never :latest
+    image: ${REGISTRY_HOST}/duri:4a533cb   # bumped by scripts/deploy-duri.sh — never :latest
     restart: unless-stopped
     environment:
       TZ: ${TZ}

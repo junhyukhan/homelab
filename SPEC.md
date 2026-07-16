@@ -196,12 +196,13 @@ in a way that forecloses them.
 | `BASE_DOMAIN`   | (human's domain)       | reserved — used by cloudflared ingress hostnames once a public route exists |
 | `PUID`          | e.g. `1000`            | reserved — forward-looking for future services; **not** consumed by registry/HA (they run as root) |
 | `PGID`          | e.g. `1000`            | reserved — as above |
-| `DURI_TAG`      | e.g. `v1` / git SHA    | duri image tag in `${REGISTRY_HOST}/duri:${DURI_TAG}`; never `:latest` |
+| ~~`DURI_TAG`~~  | —                      | **retired** — duri's version is now pinned **inline** in `compose.yaml` (git SHA), like every other service. A leftover `DURI_TAG` in `.env` is harmless/unused; drop it when convenient |
 
 duri's own **application** secrets (Supabase service-role key, `DATABASE_URL`,
 `ANTHROPIC_API_KEY`) do **not** live in the shared `.env`. They sit in a separate
 gitignored `duri.env` consumed by that service's `env_file`, so app secrets stay
-scoped to the app. The shared `.env` only carries `DURI_TAG` (the image reference).
+scoped to the app. With `DURI_TAG` retired, the shared `.env` carries only
+non-secret substitution vars (`TZ`, `REGISTRY_HOST`, `TAILSCALE_IP`).
 
 `REGISTRY_HOST` is this repo's addition to the originally-scoped key set
 (`PUID`, `PGID`, `TZ`, `BASE_DOMAIN`), so the canonical registry address is
@@ -252,16 +253,39 @@ All **LOCKED** — do not re-open without asking.
 
 ## Deploy / control model
 
-There's no API-server-style remote control after migration. The loop is:
+There's no API-server-style remote control. The primitive is manual GitOps:
 
 ```
 tailscale ssh into the box → git pull && docker compose up -d
 ```
 
+The desired state — **including each own-image's version, pinned inline in
+`compose.yaml` as a git SHA** (never `:latest`) — lives in git, so `git blame`
+is the deploy history and `git revert` is rollback. Own-image versions used to
+sit in the shared `.env` (`DURI_TAG`); they're now inline like every upstream
+image, which also keeps the non-secret version pointer out of a secret-named file.
+
+**duri** (the one Pattern-A app) wraps that loop in one command,
+`scripts/deploy-duri.sh` (see the `deploy-duri` skill): cross-build amd64 →
+stamp SHA + OCI provenance → push → pin the tag in `compose.yaml` + commit/push →
+reconcile the box → verify `/api/version`. This encodes the footguns (the
+arm64→amd64 cross-build crash-loop chief among them) so a deploy is one rigorous
+step, not ten remembered ones.
+
 Optional later upgrade: `docker context create homelab --docker "host=ssh://homelab"`
-lets compose commands run from the Mac over SSH (feels like remote kubectl again)
-without exposing the Docker daemon. Not built now. No CI-to-homelab — out of
-scope, and it has a bootstrap problem.
+lets compose commands run from the Mac over SSH without exposing the Docker daemon.
+Not built now.
+
+### Next rung — deploy-on-merge (backlog, not built)
+
+When one-command deploys start to chafe, the non-overboard automation is a
+**self-hosted GitHub Actions runner on the box**. It's already on the tailnet, so
+it can reach the Tailscale-private registry — which resolves the CI-to-homelab
+"bootstrap problem" that kept cloud CI out (GitHub-hosted runners can't see the
+private registry). That turns merge-to-`main` into an auto build+deploy while
+keeping the artifact flow (build → registry → compose) unchanged. Deliberately
+deferred: it adds a standing component to maintain, and one-command manual deploys
+are sufficient at the current cadence. Revisit only when manual starts to hurt.
 
 ---
 
