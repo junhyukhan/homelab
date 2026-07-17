@@ -11,7 +11,7 @@ and why — this README is the runbook.
 Internet → Cloudflare Edge → cloudflared tunnel ─┐
                                                   ├─→ homelab_net → registry
 Tailnet devices → 100.65.77.63:30500 ────────────┤               → duri → Supabase cloud (egress)
-              ├─→ 100.65.77.63:3000 ──────────────┘
+              ├─→ https://jun-hp-spectre.tail114865.ts.net ─(tailscale serve · TLS)→ 127.0.0.1:3000 → duri
               └─→ 100.65.77.63:8123 ─────────────────────────────→ home-assistant (host net)
 ```
 
@@ -27,7 +27,7 @@ Tailnet devices → 100.65.77.63:30500 ────────────┤  
 | cloudflared    | — (the tunnel)         | none                   | n/a               |
 | registry       | `100.65.77.63:30500`   | `homelab_registry_data`| Tailscale-private (port bound to `${TAILSCALE_IP}`) |
 | home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | LAN + Tailscale (intentional), never public |
-| duri           | `100.65.77.63:3000`    | none (data in Supabase cloud) | Tailscale-private (port bound to `${TAILSCALE_IP}`) |
+| duri           | `https://jun-hp-spectre.tail114865.ts.net` | none (data in Supabase cloud) | Tailscale-private, HTTPS via `tailscale serve` (container on loopback `127.0.0.1:3000`) |
 
 `100.65.77.63:30500` (`${REGISTRY_HOST}`) is the one canonical registry address —
 there is no `registry.homelab` name. Home Assistant uses host networking for
@@ -76,6 +76,10 @@ docker --context homelab compose up -d
 - **Deploy/update duri** (the one build-on-dev app): `./scripts/deploy-duri.sh`
   from the Mac — one command does build → push → pin → reconcile → verify. Roll
   back with `--tag <old-sha>`. See SPEC.md §Deploy and the `deploy-duri` skill.
+- **duri HTTPS (secure context):** duri is served over HTTPS via `tailscale serve`
+  at `https://jun-hp-spectre.tail114865.ts.net` (needed for the PWA + Web Crypto).
+  `./scripts/serve-duri.sh` (re)asserts and verifies that config; the container
+  itself binds loopback only. See SPEC.md §Decisions "On-box TLS via tailscale serve".
 - **Expose something publicly:** add a cloudflared ingress rule + DNS CNAME +
   Cloudflare Access policy. Default is Tailscale-private; public is opt-in per
   service. See [SPEC.md](SPEC.md) §Access planes.

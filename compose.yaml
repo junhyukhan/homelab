@@ -63,7 +63,8 @@ services:
   # artifact per SPEC Pattern A: built on a dev machine, pushed to the registry,
   # pulled here. Its DB/auth/realtime/storage live in Supabase cloud, NOT on this
   # box — so no volume. Tailscale-private (no cloudflared ingress); both partners
-  # reach it over Tailscale, same as Home Assistant. See SPEC.md §Services.
+  # reach it over Tailscale at https://<box>.<magicdns> (tailscale serve). See
+  # SPEC.md §Services and scripts/serve-duri.sh.
   #
   # The deployed version is PINNED INLINE here (git SHA, never :latest), like
   # every other service — the tag lives in git, so `git blame`/`git revert` are
@@ -81,9 +82,12 @@ services:
     env_file:
       - duri.env
     ports:
-      # Bound to the Tailscale IP only — never 0.0.0.0 — so it stays off the home
-      # LAN. Next serves on 3000 in-container.
-      - "${TAILSCALE_IP}:3000:3000"
+      # Bound to loopback only. The sole tailnet-facing door is HTTPS via
+      # `tailscale serve` (scripts/serve-duri.sh), which terminates TLS on the box
+      # and proxies to this port. duri needs a SECURE CONTEXT (HTTPS) for its PWA
+      # service worker + Web Crypto (crypto.randomUUID) — plain HTTP on the
+      # Tailscale IP is not a secure context, so we no longer publish there.
+      - "127.0.0.1:3000:3000"
     networks:
       - homelab_net
 

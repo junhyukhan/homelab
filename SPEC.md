@@ -39,7 +39,7 @@ Status: post-migration target state (k3s → Docker Compose).
 Internet → Cloudflare Edge → cloudflared tunnel ─┐
                                                   ├─→ homelab_net (bridge) → registry
 Tailnet devices ──→ <tailscale-ip>:30500 ────────┤                        → duri ──→ Supabase cloud (egress)
-                ├─→ <tailscale-ip>:3000 ──────────┘
+                ├─→ https://<box>.<magicdns> ──(tailscale serve · on-box TLS)──→ 127.0.0.1:3000 ─┘
                 └─→ <tailscale-ip>:8123 ────────────────────────────────→ home-assistant (host net)
 ```
 
@@ -84,6 +84,13 @@ public DNS, no Cloudflare. Being on the tailnet *is* the auth. A service is on
 this plane automatically just by running on the host; reached via
 `<tailscale-ip>:<port>`. Registry, Home Assistant, and SSH live here.
 
+A service that needs a **secure context** (browser HTTPS — required for PWA
+service workers and Web Crypto) is fronted by **`tailscale serve`** at
+`https://<box>.<magicdns>`, which terminates TLS on the box with an
+auto-provisioned Let's Encrypt cert and proxies to a loopback port — still
+tailnet-only, no public exposure. **duri** uses this (see §Services and the
+on-box-TLS decision); plain `<tailscale-ip>:<port>` HTTP is not a secure context.
+
 **Cloudflared tunnel — public, behind Cloudflare Access.** Reachable at
 `something.${BASE_DOMAIN}`, gated by a Cloudflare Access policy (email OTP or
 similar). The tunnel egresses from the box, so no inbound ports open. A service is
@@ -105,7 +112,7 @@ on this plane **only if a cloudflared ingress rule exists for it.**
 | registry       | Tailscale-private, never public | Cloudflare Access breaks `docker push` (no OAuth redirects). Published port is bound to `${TAILSCALE_IP}` only, so the box's home-LAN interface can't reach the unauthenticated registry. |
 | home-assistant | LAN + Tailscale (intentional), never public | Reachable from both the home LAN and the tailnet, on purpose — housemates use it on the LAN, the human reaches it off-network over Tailscale. Host networking binds `:8123` on all host interfaces, which is exactly what's wanted here. No public (Cloudflare) route. Do **not** scope it to the tailnet with `server_host` / a firewall — that would break intended LAN access. |
 | cloudflared    | n/a (is the tunnel)      | — |
-| duri           | Tailscale-private, never public | Personal two-person app; both partners reach it over Tailscale (same as HA). Published port is bound to `${TAILSCALE_IP}` only. Its Supabase-cloud backend is reached by egress — nothing inbound but the tailnet-bound port. A public route is a possible future upgrade (cloudflared ingress), not the current design. |
+| duri           | Tailscale-private, never public | Personal two-person app; both partners reach it over Tailscale (same as HA), but over **HTTPS via `tailscale serve`** at `https://<box>.<magicdns>` — duri is a PWA and needs a secure context. The container port is bound to **loopback** (`127.0.0.1:3000`); serve is the only tailnet-facing door. Its Supabase-cloud backend is reached by egress — nothing inbound. A public route is a possible future upgrade (cloudflared ingress), not the current design. |
 
 At migration time the ingress list has **no real routes** — only a commented
 example and the `http_status:404` catch-all. Nothing currently needs a public door.
@@ -121,7 +128,7 @@ Four services. That's the whole homelab.
 | cloudflared    | `cloudflare/cloudflared:latest`                | `homelab_net`       | none              | n/a (is the tunnel) |
 | registry       | `registry:2`                                   | published `${TAILSCALE_IP}:30500:5000` | `registry_data` vol | Tailscale-private |
 | home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol    | LAN + Tailscale (intentional), never public |
-| duri           | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`, published `${TAILSCALE_IP}:3000:3000` | none (stateless; data in Supabase cloud) | Tailscale-private |
+| duri           | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`, published `127.0.0.1:3000`; HTTPS via `tailscale serve` | none (stateless; data in Supabase cloud) | Tailscale-private |
 
 **cloudflared** — locally-managed tunnel. Runs
 `tunnel --no-autoupdate --config /etc/cloudflared/config.yml run`. Mounts the
@@ -154,9 +161,14 @@ would break the intended LAN access.
 Pattern A; the box only runs it. **Stateless on the box:** its database, auth
 (Supabase Auth + Postgres RLS), realtime, and file storage all live in **Supabase
 cloud** (Seoul), reached by egress — so duri has **no local volume**. Published on
-`${TAILSCALE_IP}:3000:3000` (Next serves on `3000` in-container), bound to the
-tailnet interface only. **Tailscale-private:** both partners reach it over Tailscale,
-the same way they reach Home Assistant — **no cloudflared ingress**. Server-only
+**`127.0.0.1:3000`** (loopback; Next serves on `3000` in-container) and fronted by
+**`tailscale serve`** at `https://<box>.<magicdns>`, which terminates TLS on the
+box and proxies to that loopback port. duri is a **PWA** and so needs a **secure
+context** (HTTPS) — for the service worker and `crypto.randomUUID`; plain HTTP on
+the Tailscale IP is not one, which silently broke the logger (2026-07-17), so HTTPS
+is now the only door. serve config is asserted by `scripts/serve-duri.sh`.
+**Tailscale-private:** both partners reach it over Tailscale, the same way they
+reach Home Assistant — **no cloudflared ingress**. Server-only
 secrets (Supabase service-role key, `DATABASE_URL`, Anthropic key) come from a
 gitignored `duri.env` consumed via `env_file` (kept out of the shared `.env`); the
 `NEXT_PUBLIC_*` Supabase URL + anon key are baked into the image at build time and
@@ -168,6 +180,17 @@ Cloudflare Access decision — not designed in now.
 Home Assistant's voice/media follow-ups (see `plan/home-assistant-followups.md`):
 - **Music Assistant** — will also want host networking (playback discovery).
 - **Wyoming** satellites (Whisper, Piper) — bridge-network services, no host net.
+
+**duri public door (planned, curated).** A second, additive entry point to duri for
+a **family member on a different household** who shouldn't be forced onto Tailscale:
+a `cloudflared` ingress rule (`duri.${BASE_DOMAIN}` → `http://duri:3000` over
+`homelab_net`) behind a **Cloudflare Access** policy (Google IdP, email allowlist,
+long session). The tailnet door (`tailscale serve`) stays the primary, end-to-end
+path for the two owners; the public door is the RLS-isolated, Access-gated way in
+for curated non-tailnet users. Access is warranted here — home-hosted backend +
+financial data means a perimeter so RLS isn't the sole boundary. App-side external-
+household onboarding is the real work (tracked in duri's `build/progress.md`); the
+homelab side is just the ingress rule + Access policy when it's picked up.
 
 The current design blocks none of these. Don't build them now; just don't design
 in a way that forecloses them.
@@ -224,6 +247,19 @@ All **LOCKED** — do not re-open without asking.
   second config and a reload dance for zero benefit at this scale. It's an
   add-later tool (on-box TLS, or tunnel-restart downtime becoming annoying), not a
   starting component. Matches the ThinkPad dev gateway's cloudflared-only model.
+- **On-box TLS via `tailscale serve`, not Caddy** (added 2026-07-17). duri is a
+  PWA and needs a **secure context** (HTTPS) for its service worker and Web Crypto
+  (`crypto.randomUUID`); plain HTTP on the Tailscale IP is not a secure context and
+  silently broke the logger's Save button. `tailscale serve` delivers exactly the
+  "add-later on-box TLS" the No-Caddy note anticipated — **without** adding Caddy:
+  it terminates TLS on the box with an auto-provisioned Let's Encrypt cert for the
+  node's MagicDNS name and proxies to `127.0.0.1:3000`, tailnet-only, no public
+  exposure, and no separate reverse-proxy config/reload (it's part of tailscaled).
+  Prereqs: MagicDNS + HTTPS certs enabled in the tailnet, and a one-time
+  `sudo tailscale set --operator=$USER` on the box so serve is managed without
+  root. The serve config lives in tailscaled state (not compose), so
+  **`scripts/serve-duri.sh` is the git-tracked source of truth** that reasserts it.
+  cloudflared stays the plane for anything *public* — serve is tailnet-only.
 - **Locally-managed cloudflared tunnel; ingress rules in a git-tracked config.**
   Not the dashboard-managed token-only style. Routes belong in the repo — a
   "declarative homelab" must actually declare where traffic goes. The config file
@@ -309,6 +345,7 @@ The human executes these; the repo only documents them.
 ## Open questions
 
 - None currently. (duri's port / DB / access plane are resolved: a stateless
-  container with a Supabase-cloud backend, Tailscale-private on `:3000` — see
+  container with a Supabase-cloud backend, Tailscale-private and served over HTTPS
+  via `tailscale serve` (loopback `127.0.0.1:3000` behind on-box TLS) — see
   §Services. Making duri public later is a known, additive cloudflared decision, not
   an open design question.)

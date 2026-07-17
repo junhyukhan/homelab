@@ -23,7 +23,7 @@ DURI_DIR="${DURI_DIR:-$(cd "$HOMELAB_DIR/../duri/v3" && pwd)}"
 REGISTRY_HOST="${REGISTRY_HOST:-100.65.77.63:30500}"
 BOX_HOST="${BOX_HOST:-jun@100.65.77.63}"
 BOX_SSH_KEY="${BOX_SSH_KEY:-$HOME/.ssh/id_ed25519__jun_hp_spectre__homeserver}"
-BOX_URL="${BOX_URL:-http://100.65.77.63:3000}"
+BOX_URL="${BOX_URL:-https://jun-hp-spectre.tail114865.ts.net}"   # HTTPS via tailscale serve; container is loopback-only
 BOX_HOMELAB_DIR="${BOX_HOMELAB_DIR:-~/homelab}"
 
 TAG=""; DRY_RUN=0; DIRTY_OK=0; SKIP_BUILD=0
