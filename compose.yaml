@@ -71,7 +71,7 @@ services:
   # bumps this line, pushes, and reconciles the box. Bring up only after the
   # image exists (the script builds+pushes first). See SPEC.md §Deploy.
   duri:
-    image: ${REGISTRY_HOST}/duri:abb4140   # bumped by scripts/deploy-duri.sh — never :latest
+    image: ${REGISTRY_HOST}/duri:1bb8d62   # bumped by scripts/deploy-duri.sh — never :latest
     restart: unless-stopped
     environment:
       TZ: ${TZ}
