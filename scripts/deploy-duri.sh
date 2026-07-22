@@ -19,7 +19,7 @@ set -euo pipefail
 # --- config (defaults match the current homelab) -----------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOMELAB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-DURI_DIR="${DURI_DIR:-$(cd "$HOMELAB_DIR/../duri/v3" && pwd)}"
+DURI_DIR="${DURI_DIR:-$(cd "$HOMELAB_DIR/../duri-v3" && pwd)}"
 REGISTRY_HOST="${REGISTRY_HOST:-100.65.77.63:30500}"
 BOX_HOST="${BOX_HOST:-jun@100.65.77.63}"
 BOX_SSH_KEY="${BOX_SSH_KEY:-$HOME/.ssh/id_ed25519__jun_hp_spectre__homeserver}"

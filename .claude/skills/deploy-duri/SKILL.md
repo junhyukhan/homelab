@@ -37,7 +37,7 @@ ssh -i ~/.ssh/id_ed25519__jun_hp_spectre__homeserver jun@100.65.77.63 \
 
 ## Notes / guardrails
 - **Secrets:** the script feeds the *public* `NEXT_PUBLIC_*` Supabase values as build
-  args (extracted file-to-file from `duri/v3/.env.hosted`, never printed). Server
+  args (extracted file-to-file from `duri-v3/.env.hosted`, never printed). Server
   secrets (`SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `ANTHROPIC_API_KEY`) are **not**
   baked — the box supplies them at runtime via `duri.env`.
 - **Never `:latest`.** The tag is always a git SHA, pinned in `compose.yaml`.
