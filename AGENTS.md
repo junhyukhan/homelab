@@ -10,8 +10,13 @@ volumes; all config is in this repo.
 
 - **`SPEC.md`** — the source of truth for *what* runs and *why* (goals, architecture,
   access planes, decisions). Read it before adding, removing, or changing any service.
+  This is homelab's "read-first" state layer (its equivalent of a `docs/README.md`).
 - **`README.md`** — the runbook: deploy loop, day-to-day commands, per-service addresses,
   bootstrap/recovery.
+- **`docs/decisions/`** — append-only decision logs: the **verbatim ask + Discussion** behind
+  each choice (copy `docs/decisions/TEMPLATE.md`). `SPEC.md §Decisions` states *what* was
+  decided as current fact; `docs/decisions/` preserves the *why* and how it evolved, in Han's
+  own words. This is the workspace-wide shape — see `../docs/repo-docs-standardization.md`.
 
 Keep both current: **when a permanent service changes, update `SPEC.md` first, then the
 code** — spec before config, never reverse-derive the spec from `compose.yaml`.
