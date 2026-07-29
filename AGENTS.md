@@ -1,3 +1,18 @@
+---
+workspace:
+  readfirst: SPEC.md
+  decisions: docs/decisions/
+  backlog: [plan/duri-followups.md, plan/home-assistant-followups.md]
+  # Deliberately null. `docker compose config -q` validates against duri.env,
+  # which exists only on the box — it can never pass on a laptop. And it isn't
+  # needed: this repo's chore surface is docs-only (SPEC.md, docs/), and a docs
+  # change has no behavior to verify. The gate for a docs-only chore is the
+  # path restriction the supervisor enforces, not a command. compose.yaml is
+  # deploy-adjacent and stays manual regardless of what the class allows.
+  verify: null
+  autonomy: chore
+---
+
 # AGENTS.md — homelab
 
 Guidance for any coding agent working in this repository.
