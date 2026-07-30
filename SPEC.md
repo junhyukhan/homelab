@@ -79,6 +79,11 @@ that's a deliberate change to raise — don't split the naming silently.
 Every service sits on one or both planes. This is a **mechanical decision made per
 service**, not inferred.
 
+> **Why the planes are what they are:** [`docs/decisions/access-planes.md`](docs/decisions/access-planes.md)
+> — duri's on-box TLS (and the silent PWA breakage that forced it), and why Home Assistant's LAN
+> reachability is intended rather than an oversight to harden. This section states the current fact;
+> that record holds the reasoning.
+
 **Tailscale — private (the default).** Reachable only from tailnet devices. No
 public DNS, no Cloudflare. Being on the tailnet *is* the auth. A service is on
 this plane automatically just by running on the host; reached via
