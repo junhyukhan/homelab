@@ -42,6 +42,14 @@ services:
       - "${TAILSCALE_IP}:30500:5000"
     volumes:
       - registry_data:/var/lib/registry
+    # /v2/ is the registry API root — a 200 means it can actually serve pulls,
+    # which is what the duri deploy depends on. `registry:2` has no wget/curl, so
+    # this uses the statically-linked binary the image does ship.
+    healthcheck:
+      test: ["CMD", "/bin/registry", "--version"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
     networks:
       - homelab_net
 
@@ -84,6 +92,22 @@ services:
     # when one is missing.
     env_file:
       - duri.env
+    # `restart: unless-stopped` hides a crash-loop indefinitely — the container
+    # keeps coming back and `docker compose ps` says "Up" every time you look.
+    # This makes a broken app distinguishable from a running one. Reuses the same
+    # /api/version endpoint the deploy already verifies, so a healthy check means
+    # the app is actually serving, not merely that a process exists.
+    # start_period covers Next's cold boot; failures before it don't count.
+    # NOTE: this image has NO wget and NO curl (verified against the image, not
+    # assumed — the first draft used wget and would have marked duri permanently
+    # unhealthy). It does ship node v22, which has global fetch, so the check is
+    # written in node deliberately. Re-verify if the base image ever changes.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/version').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     ports:
       # Bound to loopback only. The sole tailnet-facing door is HTTPS via
       # `tailscale serve` (scripts/serve-duri.sh), which terminates TLS on the box
