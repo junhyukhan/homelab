@@ -76,9 +76,12 @@ services:
     restart: unless-stopped
     environment:
       TZ: ${TZ}
-    # Server-only app secrets (Supabase service-role key, DATABASE_URL, Anthropic
+    # Server-only app secrets (Supabase service-role key, DATABASE_URL, OpenAI
     # key) — gitignored, kept OUT of the shared .env. The NEXT_PUBLIC_* Supabase
     # URL + anon key are baked into the image at build time, not set here.
+    # The authoritative key list is `duri.env.example`; `scripts/push-duri-env.sh`
+    # projects it onto the box and `scripts/deploy-duri.sh` refuses to deploy
+    # when one is missing.
     env_file:
       - duri.env
     ports:

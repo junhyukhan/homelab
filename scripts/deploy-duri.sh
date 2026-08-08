@@ -52,6 +52,38 @@ fi
 IMAGE="$REGISTRY_HOST/duri:$TAG"
 say "Deploying duri → $IMAGE  (dry-run=$DRY_RUN, skip-build=$SKIP_BUILD)"
 
+# --- 1b. preflight the box's env against the contract ------------------------
+# A missing server secret does not fail the build, the push, or the container
+# start — it surfaces at RUNTIME as a 503 that a human discovers by tapping a
+# button (exactly how OPENAI_API_KEY was found absent on 2026-08-08). So check
+# it here, where it is still cheap. NAMES only: no value is read, printed, or
+# transported by this step.
+CONTRACT_FILE="$HOMELAB_DIR/duri.env.example"
+if [[ -f "$CONTRACT_FILE" ]]; then
+  say "Preflight: the box's app env vs duri.env.example"
+  # bash 3.2 (what macOS ships) has no `mapfile`, and this runs on the Mac —
+  # read the names with a portable loop instead.
+  WANT_KEYS=()
+  while IFS= read -r _k; do [ -n "$_k" ] && WANT_KEYS+=("$_k"); done < <(grep -oE '^[A-Z][A-Z0-9_]*=' "$CONTRACT_FILE" | tr -d '=')
+  if [[ $DRY_RUN == 1 ]]; then
+    echo "  [dry-run] would require: ${WANT_KEYS[*]}"
+  else
+    HAVE_KEYS="$(ssh_box "grep -oE '^[A-Z][A-Z0-9_]*=.+' $BOX_HOMELAB_DIR/duri.env 2>/dev/null | grep -oE '^[A-Z][A-Z0-9_]*' | tr '\n' ' '" || true)"
+    MISSING_KEYS=()
+    for k in "${WANT_KEYS[@]}"; do
+      case " $HAVE_KEYS " in
+        *" $k "*) printf '  \033[32m\xe2\x9c\x93\033[0m %s\n' "$k" ;;
+        *) printf '  \033[31m\xe2\x9c\x97\033[0m %s  MISSING\n' "$k"; MISSING_KEYS+=("$k") ;;
+      esac
+    done
+    if [[ ${#MISSING_KEYS[@]} -gt 0 ]]; then
+      printf '\n\033[31m\xe2\x9c\x97 Refusing to deploy \xe2\x80\x94 the box is missing: %s\033[0m\n' "${MISSING_KEYS[*]}" >&2
+      echo "  Fix it without copy-pasting a secret:  scripts/push-duri-env.sh" >&2
+      exit 1
+    fi
+  fi
+fi
+
 # --- 2. build + push (skipped on --tag rollback) -----------------------------
 if [[ $SKIP_BUILD == 0 ]]; then
   # NEXT_PUBLIC_* (public, inlined into the client bundle) — extracted file-to-file

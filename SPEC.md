@@ -174,7 +174,7 @@ the Tailscale IP is not one, which silently broke the logger (2026-07-17), so HT
 is now the only door. serve config is asserted by `scripts/serve-duri.sh`.
 **Tailscale-private:** both partners reach it over Tailscale, the same way they
 reach Home Assistant — **no cloudflared ingress**. Server-only
-secrets (Supabase service-role key, `DATABASE_URL`, Anthropic key) come from a
+secrets (Supabase service-role key, `DATABASE_URL`, OpenAI key) come from a
 gitignored `duri.env` consumed via `env_file` (kept out of the shared `.env`); the
 `NEXT_PUBLIC_*` Supabase URL + anon key are baked into the image at build time and
 so aren't runtime env here. Going public later is an additive cloudflared ingress +
@@ -226,10 +226,19 @@ in a way that forecloses them.
 | `PGID`          | e.g. `1000`            | reserved — as above |
 | ~~`DURI_TAG`~~  | —                      | **retired** — duri's version is now pinned **inline** in `compose.yaml` (git SHA), like every other service. A leftover `DURI_TAG` in `.env` is harmless/unused; drop it when convenient |
 
-duri's own **application** secrets (Supabase service-role key, `DATABASE_URL`,
-`ANTHROPIC_API_KEY`) do **not** live in the shared `.env`. They sit in a separate
+duri's own **application** secrets (`SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`,
+`OPENAI_API_KEY`) do **not** live in the shared `.env`. They sit in a separate
 gitignored `duri.env` consumed by that service's `env_file`, so app secrets stay
-scoped to the app. With `DURI_TAG` retired, the shared `.env` carries only
+scoped to the app.
+
+**`duri.env.example` is the contract, not a doc.** Two scripts read the key *names*
+from it: `push-duri-env.sh` ships exactly those keys, and `deploy-duri.sh`
+refuses to deploy when the box is missing one. Adding a key there is how you add
+it to the deploy. It said `ANTHROPIC_API_KEY` until 2026-08-08 — a key duri reads
+nowhere — while the key it actually needs (`OPENAI_API_KEY`, the voice-logging
+parse seam, decided 2026-07-29) was undeclared and absent from the box. That is
+the failure this contract exists to make impossible: a stale template is worse
+than none, because reading it is the *correct* instinct. With `DURI_TAG` retired, the shared `.env` carries only
 non-secret substitution vars (`TZ`, `REGISTRY_HOST`, `TAILSCALE_IP`).
 
 `REGISTRY_HOST` is this repo's addition to the originally-scoped key set

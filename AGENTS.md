@@ -43,6 +43,10 @@ code** — spec before config, never reverse-derive the spec from `compose.yaml`
 - **Secrets:** live in `*.env` files (e.g. `.env`, `duri.env`) which are gitignored —
   never read or print their values. To learn what keys a file holds, read the matching
   `*.env.example`. When a secret must move, do it file-to-file (never echo/cat to console).
+  **`duri.env.example` is a machine-read contract, not a doc**: `scripts/push-duri-env.sh`
+  ships exactly the keys it declares and `scripts/deploy-duri.sh` refuses to deploy when
+  the box lacks one, so it must stay accurate — it declared a key duri reads nowhere until
+  2026-08-08. See `docs/decisions/app-env-contract.md`.
 - **No inbound ports.** Two ways in: Tailscale (the default — being on the tailnet *is*
   the auth) and an egress-only cloudflared tunnel (for consciously-public services behind
   Cloudflare Access). Public exposure is opt-in per service, never the default.
@@ -59,7 +63,8 @@ git pull && docker compose up -d
 ```
 
 `duri` is the one build-on-dev app: build → push → pin → reconcile → verify via
-`./scripts/deploy-duri.sh` from the Mac (roll back with `--tag <old-sha>`).
+`./scripts/deploy-duri.sh` from the Mac (roll back with `--tag <old-sha>`). Its app
+secrets are projected onto the box by `./scripts/push-duri-env.sh` — never hand-copied.
 (Claude Code: the `deploy-duri` skill wraps this.) duri is served over HTTPS via
 `tailscale serve` (`./scripts/serve-duri.sh`); the container binds loopback only —
 a secure context is required because duri is a PWA using Web Crypto.

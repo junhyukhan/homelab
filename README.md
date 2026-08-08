@@ -59,6 +59,20 @@ docker compose pull && docker compose up -d   # update images
 docker compose down                   # stop the stack (volumes persist)
 ```
 
+**duri's app secrets are pushed, not pasted.** `duri.env.example` is the contract —
+the key *names* it declares are what ships and what gets checked:
+
+```bash
+scripts/push-duri-env.sh --dry-run   # names only; verifies the source has them all
+scripts/push-duri-env.sh             # backs up the box's copy, then replaces it
+```
+
+Values move file-to-file and are never printed. `scripts/deploy-duri.sh` refuses to
+deploy if the box is missing a declared key — a missing secret otherwise surfaces
+as a runtime 503 that a human finds by tapping a button. Adding a key to the
+example is how you add it to the deploy. The container only picks up a changed env
+on recreate (`docker compose up -d --force-recreate duri`), which the deploy does.
+
 The deploy loop is intentionally manual: **SSH in, `git pull`, `docker compose
 up -d`.** There's no remote control plane. Optionally you can drive it from the Mac
 without exposing the daemon:
