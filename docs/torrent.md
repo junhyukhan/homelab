@@ -73,9 +73,23 @@ deliberately, so a missing disk can never be silently redirected onto the
 internal SSD (see SPEC.md). Create it, owned by `PUID:PGID` from `.env`:
 
 ```bash
-sudo mkdir -p /srv/torrents
-sudo chown 1000:1000 /srv/torrents      # match PUID/PGID in .env
+sudo mkdir -p /srv/torrents/complete /srv/torrents/incomplete
+sudo chown -R 1000:1000 /srv/torrents   # match PUID/PGID in .env
 ```
+
+Both subdirectories matter. transmission writes in-progress files to
+`incomplete/` and moves them to `complete/` when done (same filesystem, so an
+atomic rename rather than a copy) — this is the linuxserver image's default, not
+something we configure. **gerbera scans `complete/` only**, so half-written files
+never appear in the projector's 콘텐츠 공유 list.
+
+> **Ownership is load-bearing, and gets broken in a specific way.** If
+> `complete/` doesn't exist, a *plain* bind mount makes Docker silently create it
+> as `root:root` — after which transmission (uid 1000) can no longer move finished
+> downloads into it. Torrents complete and go nowhere, while gerbera shows a
+> healthy, empty library. Both compose files therefore use the guarded
+> bind-volume form, which refuses to start rather than inventing the directory.
+> If you ever see `root root` here, fix it with the `chown` above and recreate.
 
 There is **no external disk on the box today** — `/srv/torrents` is on the
 internal NVMe (~200 G free). When a real disk arrives: mount it, point

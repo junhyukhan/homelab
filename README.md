@@ -32,6 +32,7 @@ Tailnet devices → 100.65.77.63:30500 ────────────┤  
 | registry       | `100.65.77.63:30500`   | `homelab_registry_data`| Tailscale-private (port bound to `${TAILSCALE_IP}`) |
 | home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | LAN + Tailscale (intentional), never public |
 | duri           | `https://jun-hp-spectre.tail114865.ts.net` | none (data in Supabase cloud) | Tailscale-private, HTTPS via `tailscale serve` (container on loopback `127.0.0.1:3000`) |
+| gerbera        | DLNA on the LAN (`:49494`, SSDP `:1900`) | `homelab_gerbera_data`; media read-only | LAN + Tailscale (intentional), never public |
 | gluetun        | — (owns the torrent netns) | none                   | Tailscale-private, never public |
 | transmission   | `https://jun-hp-spectre.tail114865.ts.net:8443` | `homelab_transmission_config` + `homelab_torrent_downloads` (binds `/srv/torrents`) | Tailscale-private via gluetun, never public |
 

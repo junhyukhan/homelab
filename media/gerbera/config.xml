@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Gerbera config — the git-tracked source of truth for the DLNA server.
+  Mounted READ-ONLY at /var/run/gerbera/config.xml (see compose.yaml).
+
+  Gerbera does NOT rewrite this file at runtime (its state lives in a separate
+  SQLite DB), which is why it can be a tracked file at all — unlike transmission,
+  whose settings.json is rewritten on shutdown and therefore needs
+  scripts/settings-transmission.sh instead. Edit here, then:
+    docker compose up -d --force-recreate gerbera
+
+  Deliberately minimal: Gerbera supplies defaults for anything omitted, so only
+  the decisions worth recording live here. See SPEC.md §"Media serving — gerbera"
+  and docs/decisions/dlna-media.md.
+-->
+<config version="2"
+        xmlns="http://gerbera.io/config/2"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://gerbera.io/config/2 http://gerbera.io/config/2.xsd">
+  <server>
+    <!--
+      ADMIN UI DISABLED — deliberate, not a default.
+      DLNA needs network_mode: host (SSDP multicast), and host networking binds
+      EVERY interface, so there is no way to put this UI on loopback the way duri
+      and transmission are bound. Leaving it enabled would publish an
+      unauthenticated admin panel on the home LAN, where anyone could alter or
+      wipe the library. Turning it off costs nothing: media still serves — only
+      the admin surface disappears — and the library stays current via the inotify
+      autoscan configured below, rather than a Rescan button.
+    -->
+    <ui enabled="no"/>
+
+    <!-- Shown as the server name in the projector's 콘텐츠 공유 menu. -->
+    <name>homelab</name>
+
+    <!--
+      PINNED UDN — do not regenerate.
+      Gerbera generates a random UUID per config. A changing UDN makes the
+      projector treat this as a brand-new server on every restart, losing its
+      place in 콘텐츠 공유. Fixed here so the identity is stable across
+      restarts, image bumps and volume recreation.
+    -->
+    <udn>uuid:8af5e0e1-9a39-4a17-b240-9ac68ebf9d67</udn>
+
+    <!--
+      Writable state (the SQLite DB) lives here, backed by the gerbera_data
+      named volume. NOT /root — the container drops privileges to the gerbera
+      user, which cannot write there.
+    -->
+    <home>/var/run/gerbera</home>
+
+    <storage>
+      <sqlite3 enabled="yes">
+        <database-file>gerbera.db</database-file>
+        <backup enabled="yes" interval="600"/>
+      </sqlite3>
+    </storage>
+  </server>
+
+  <import hidden-files="no">
+    <!--
+      inotify autoscan: new files appear in the projector's library on their own.
+      This is what replaces the disabled UI's Rescan button, and it matters here
+      because files land continuously as torrents finish.
+
+      /media is ${TORRENT_DOWNLOADS}/complete mounted READ-ONLY. It points at
+      complete/ specifically, NOT the parent: transmission writes in-progress
+      files to a sibling incomplete/ directory and moves them on completion
+      (same filesystem, so an atomic rename). Scanning the parent would surface
+      half-written files as broken, unplayable entries.
+    -->
+    <autoscan use-inotify="yes">
+      <directory location="/media"
+                 mode="inotify"
+                 recursive="yes"
+                 hidden-files="no"/>
+    </autoscan>
+  </import>
+</config>

@@ -127,6 +127,56 @@ services:
     networks:
       - homelab_net
 
+  # gerbera — DLNA media server for the living-room projector (Hisense M2 Pro,
+  # VIDAA OS). Serves finished downloads over the LAN. See SPEC.md §"Media
+  # serving — gerbera" and docs/decisions/dlna-media.md.
+  #
+  # ─────────────────────────────────────────────────────────────────────────
+  # THIS SERVICE SHARES THE TORRENT STACK'S *VOLUME*, NEVER ITS *NETWORK*.
+  # It reads the files transmission writes, but must NOT join gluetun's
+  # namespace: that would make it unreachable from the living room AND tunnel a
+  # living-room video stream through Tokyo. That is why it lives here in the
+  # root compose file rather than in torrent/compose.yaml — the file boundary
+  # reinforces the network boundary.
+  # ─────────────────────────────────────────────────────────────────────────
+  gerbera:
+    image: gerbera/gerbera:3.2.1
+    restart: unless-stopped
+    # REQUIRED, not a preference. DLNA discovery is SSDP multicast
+    # (239.255.255.250:1900) and docker bridge networks do NOT carry multicast to
+    # the LAN — a bridged gerbera is simply never discovered by the projector,
+    # while looking perfectly healthy. Same forced exception as home-assistant,
+    # for the same class of reason.
+    network_mode: host
+    environment:
+      # The image's entrypoint usermods the gerbera user (default 1042) to these.
+      # Aligned with transmission's PUID/PGID so the media files it reads are
+      # owned by the same user that wrote them.
+      UID: ${PUID}
+      GID: ${PGID}
+      TZ: ${TZ}
+    volumes:
+      # Config is a git-tracked FILE, mounted read-only. Gerbera does not rewrite
+      # it at runtime (state lives in the SQLite DB below), which is exactly why
+      # this can be tracked — unlike transmission's settings.json, which is
+      # rewritten on shutdown and therefore needs an asserter script instead.
+      - ./media/gerbera/config.xml:/var/run/gerbera/config.xml:ro
+      # Writable state: the SQLite library DB.
+      - gerbera_data:/var/run/gerbera
+      # The media, READ-ONLY. A DLNA server has no reason to modify media, so a
+      # bug or compromise here cannot touch the library.
+      # Points at complete/ NOT the parent: transmission writes in-progress files
+      # to a sibling incomplete/ and moves them on completion (same filesystem =
+      # atomic rename). Scanning the parent would surface half-written files as
+      # broken entries in the projector's 콘텐츠 공유 list.
+      # Uses the guarded bind-volume form (see volumes: below), NOT a plain bind.
+      - torrent_complete:/media:ro
+    # NO `ports:` key. Under network_mode: host it would be silently IGNORED —
+    # the same trap as `ports:` on a network_mode: service: container in the
+    # torrent stack. Gerbera binds 49494/tcp (HTTP) and 1900/udp (SSDP) directly
+    # on the host. The admin UI is disabled in config.xml, since host networking
+    # gives no way to bind it to loopback.
+
 networks:
   homelab_net:
     driver: bridge
@@ -134,3 +184,22 @@ networks:
 volumes:
   registry_data:
   ha_data:
+  gerbera_data:
+  # The completed-downloads directory, as a GUARDED bind — same form and same
+  # reason as torrent_downloads in torrent/compose.yaml.
+  #
+  # A plain `- /srv/torrents/complete:/media:ro` bind is silently created by
+  # Docker as an empty ROOT-OWNED directory when the path is missing. That is not
+  # hypothetical: it happened here on 2026-08-15 during a test run, and it breaks
+  # transmission rather than gerbera — transmission (uid 1000) then cannot move
+  # completed downloads into a root-owned directory, so torrents finish and go
+  # nowhere, while gerbera reports a perfectly healthy empty library.
+  #
+  # This form refuses to start the container instead. The directory is created
+  # once, with the right ownership, by the runbook (docs/torrent.md §1.3).
+  torrent_complete:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${TORRENT_DOWNLOADS:-/srv/torrents}/complete

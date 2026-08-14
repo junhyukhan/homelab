@@ -55,6 +55,12 @@ Tailnet devices ──→ <tailscale-ip>:30500 ────────┤      
    ┌─────────────────────────────────────────────────────────────────────────────────────┘
    │  gluetun (netns owner) ──WireGuard──→ Windscribe (Japan) ──→ BitTorrent swarm
    └─→ transmission  ── network_mode: service:gluetun ── has NO network stack of its own
+              │
+              │  writes ${TORRENT_DOWNLOADS}/complete   (incomplete/ is a sibling)
+              ▼
+   Home LAN ──→ gerbera (host net · SSDP multicast) ──reads ro──→ /media
+       └─→ Hisense M2 Pro projector (VIDAA · 콘텐츠 공유)
+           NOTE: shares the torrent stack's VOLUME, never its NETWORK.
 ```
 
 - **The box:** an i7-7th-gen laptop, 8 GB RAM, Debian, headless. Reachable over
@@ -133,6 +139,7 @@ on this plane **only if a cloudflared ingress rule exists for it.**
 | cloudflared    | n/a (is the tunnel)      | — |
 | duri           | Tailscale-private, never public | Personal two-person app; both partners reach it over Tailscale (same as HA), but over **HTTPS via `tailscale serve`** at `https://<box>.<magicdns>` — duri is a PWA and needs a secure context. The container port is bound to **loopback** (`127.0.0.1:3000`); serve is the only tailnet-facing door. Its Supabase-cloud backend is reached by egress — nothing inbound. A public route is a possible future upgrade (cloudflared ingress), not the current design. |
 | gluetun        | Tailscale-private, never public | Owns the torrent namespace. Publishes transmission's UI on **loopback** (`127.0.0.1:9091`) only. Its *egress* does not use the box's ISP route at all — it goes out over WireGuard to Windscribe. Never gets a cloudflared ingress: a public door into a VPN namespace defeats the point of the namespace. |
+| gerbera        | LAN + Tailscale (intentional), never public | DLNA media server for the living-room projector (Hisense M2 Pro, **VIDAA OS**), which cannot join the tailnet — VIDAA is a closed ecosystem with no Jellyfin/Kodi/VLC client, so the LAN is the only path to it. Discovery is **SSDP multicast**, which a docker bridge does not carry, so `network_mode: host` is *required* — the same forced exception as Home Assistant, for the same class of reason. Host networking binds every interface, so LAN reachability is a consequence of the protocol, not a preference. Mitigated by disabling the admin UI (see §Media serving). Never public: a DLNA server has no business on the internet. |
 | transmission   | Tailscale-private, never public | Has **no network stack of its own** (`network_mode: service:gluetun`), so it has no plane independent of gluetun's — this is the containment guarantee, not a convenience. Reached over Tailscale at **`https://<box>.<magicdns>:8443`** via a second `tailscale serve` mount. RPC is password-protected *in addition to* the tailnet boundary. |
 
 At migration time the ingress list has **no real routes** — only a commented
@@ -150,6 +157,7 @@ Six services. That's the whole homelab.
 | registry       | `registry:2`                                   | published `${TAILSCALE_IP}:30500:5000` | `registry_data` vol | Tailscale-private |
 | home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol    | LAN + Tailscale (intentional), never public |
 | duri           | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`, published `127.0.0.1:3000`; HTTPS via `tailscale serve` | none (stateless; data in Supabase cloud) | Tailscale-private |
+| gerbera        | `gerbera/gerbera:3.2.1`                        | **`network_mode: host`** (SSDP multicast) | `gerbera_data` vol; media read-only | LAN + Tailscale (intentional), never public |
 | gluetun        | `qmcgaw/gluetun:v3.41.3`                       | `homelab_net`, published `127.0.0.1:9091`; **owns the torrent netns** | none | Tailscale-private |
 | transmission   | `lscr.io/linuxserver/transmission:4.1.3-r0-ls357` | **`network_mode: service:gluetun`** — no stack of its own | `transmission_config` vol + `torrent_downloads` bind-volume | Tailscale-private (via gluetun) |
 
@@ -303,6 +311,64 @@ prefix-stripping. The 443/8443/10000 restriction people remember applies to
 **Leak-check procedure: [`docs/torrent.md`](docs/torrent.md)** — first-run setup plus
 the three assertions (exit IP is Windscribe's, transmission goes dark when gluetun
 stops, UI is tailnet-only). Run it after any change to this stack.
+
+### Media serving — gerbera (DLNA)
+
+Serves finished downloads to the living-room projector. Lives in the **root**
+`compose.yaml`, deliberately **not** in `torrent/compose.yaml`.
+
+**The rule that defines this service: it shares the torrent stack's *volume*,
+never its *network*.** Gerbera reads the same files transmission writes, but its
+traffic must go over the LAN to the projector. Putting it in gluetun's namespace
+would make it unreachable from the living room *and* would tunnel a
+living-room video stream through Tokyo. Volume sharing is the intended coupling;
+network sharing would be a bug.
+
+**Why `network_mode: host` is forced, not chosen.** DLNA discovery is SSDP
+multicast (`239.255.255.250:1900`). Docker bridge networks do not carry multicast
+to the LAN, so a bridged Gerbera is simply never discovered — it would appear to
+"work" while being invisible to the projector. This is the same forced exception
+Home Assistant has for mDNS/SSDP, and it carries the same consequence: **no
+`ports:` key**, because host networking ignores it (compose does not error — the
+same silent-failure shape as the `network_mode: service:` trap in the torrent
+stack). Both are commented inline.
+
+**The client constrains the design.** The projector is a Hisense M2 Pro running
+**VIDAA U7.6**, a closed OS: no Jellyfin, Kodi or VLC client exists for it. Its
+built-in **콘텐츠 공유** ("content sharing") menu is a DLNA browser, which is why
+DLNA — rather than a media server with a native app — is the integration point.
+Plex does have a VIDAA app, but was rejected: direct-play failures on VIDAA are
+widely reported, and a failed direct play means *server-side transcoding*, which
+is precisely the sustained CPU load the thermal budget forbids. DLNA direct-plays
+or fails honestly; it never quietly costs CPU.
+
+**Config is a git-tracked file, and the admin UI is off.** Unlike transmission —
+whose `settings.json` is rewritten on shutdown, forcing the asserter-script
+pattern — Gerbera does not rewrite its `config.xml` at runtime (state lives in a
+separate SQLite DB). So the file itself can be the source of truth, mounted
+read-only from `media/gerbera/config.xml`. The admin UI is **disabled**
+(`<ui enabled="no"/>`): host networking would otherwise expose an unauthenticated
+admin panel on the home LAN with no way to bind it to loopback. Disabling it costs
+nothing — media still serves, and the library stays current via **inotify
+autoscan** declared in the config rather than by clicking Rescan in a browser.
+
+**The UDN is pinned in git.** Gerbera generates a random UUID per config; a
+changing UDN makes the projector treat the server as brand new each restart,
+losing its place in 콘텐츠 공유. It is fixed in the tracked `config.xml`.
+
+**What it serves.** `${TORRENT_DOWNLOADS}/complete` mounted **read-only** at
+`/media`. Read-only is deliberate: a DLNA server has no reason to modify media,
+and it means a bug or compromise there cannot touch the library. It points at
+`complete/` specifically — **not** the parent — because transmission writes
+in-progress files to a sibling `incomplete/` directory (an image default, already
+enabled) and moves them on completion. Same filesystem, so completion is an atomic
+rename rather than a copy. Pointing Gerbera at the parent would surface
+half-written files in 콘텐츠 공유 as broken, unplayable entries.
+
+**Known limitation: subtitles.** DLNA's handling of external `.srt` files is
+unreliable and varies by renderer. Media with *embedded* subtitle tracks is the
+path that works. If external subtitles turn out to matter, that is the trigger to
+reconsider a Google TV dongle + Jellyfin, not to add a transcoding server here.
 
 ### Anticipated future services (not built now)
 
@@ -473,6 +539,15 @@ All **LOCKED** — do not re-open without asking.
 - **No public route for anything in the torrent stack, ever.** A cloudflared ingress
   into a VPN namespace would defeat the namespace. This is a standing exception
   alongside the registry's.
+- **DLNA (gerbera) for the projector, not Plex or Jellyfin** (added 2026-08-15). The
+  Hisense M2 Pro runs VIDAA, a closed OS with no Jellyfin/Kodi/VLC client. Plex has a
+  VIDAA app but reported direct-play failures there mean server-side transcoding, which
+  the thermal budget forbids. DLNA is what the projector's 콘텐츠 공유 menu already
+  speaks. `network_mode: host` is **forced** by SSDP multicast, which docker bridges
+  do not carry — so LAN exposure is a protocol consequence, mitigated by disabling the
+  admin UI. Gerbera shares the torrent stack's **volume, never its network**: media
+  goes to the living room over the LAN, not through Windscribe.
+  See [`docs/decisions/dlna-media.md`](docs/decisions/dlna-media.md).
 
 ---
 
