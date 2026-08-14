@@ -136,17 +136,46 @@ The upload cap is a **thermal** control, not a bandwidth one — the reason is t
 laptop chassis shared with Home Assistant and duri, so the value belongs to the box, not
 to the link.
 
+### Resolved at first deploy (2026-08-14)
+
+- **`SERVER_REGIONS=Japan` is valid** — resolves to a Tokyo exit (M247, Windscribe's
+  host). Closed.
+- **WireGuard is kernelspace, not userspace** — gluetun logs `[wireguard] Using
+  available kernelspace implementation`. Encryption is on the cheap path, so there is
+  more thermal headroom than the worst case assumed; the upload cap stays a deliberate
+  ceiling rather than a necessary one. Closed.
+- **Leak check**: assertion 1 (exit IP ≠ home ISP) and assertion 3 (UI bound to
+  `127.0.0.1:9091`) both pass. Assertion 2 still to run — see Open questions.
+
+### What first setup actually cost — two traps worth keeping
+
+Both were configuration, not design, and both are now documented in
+`torrent/gluetun.env.example` and `docs/torrent.md §4a`:
+
+1. **Restart ≠ recreate.** Env vars are baked in at container *creation*, so
+   `restart: unless-stopped` kept replaying the *original* environment after the env
+   file was corrected. The failure mode is nasty because the symptom is an error you
+   have already fixed, reappearing with fresh timestamps — it reads as "my fix didn't
+   work" when the fix was never loaded. The tell is `stat` on the env file versus the
+   container's `.Created`. This was already documented for duri in the README but not
+   here, which is exactly why it bit.
+
+2. **Windscribe's `Address` line is dual-stack.** It carries IPv4 *and* IPv6
+   comma-separated; pasting the whole line makes gluetun refuse to start, since the box
+   has no IPv6. Keeping only the IPv4 `/32` is the *safer* configuration rather than a
+   workaround: with no IPv6 address in the tunnel the namespace has no IPv6 route at
+   all, so transmission cannot leak over IPv6 — a common hole in dual-stack setups.
+
+   A near-miss belongs with these: `[Peer]` holds both `PublicKey` and `PresharedKey`,
+   adjacent and visually identical, and the wrong one went in first. The shape check
+   (`len=44 charset_ok=yes ends_with_eq=yes`) diagnoses all of these **without ever
+   printing the secret**, and is now in both docs.
+
 ### Open questions
 
-- **`SERVER_REGIONS=Japan` is unverified.** gluetun's region names are its own, and
-  "Build a Plan" subscriptions only reach purchased regions. It fails loudly at startup
-  if wrong; the authoritative list is
-  `docker run --rm qmcgaw/gluetun:v3 format-servers -windscribe`. Confirm at first run.
-- **In-kernel vs userspace WireGuard is unconfirmed** — `modinfo` isn't on the box's
-  `$PATH`, so the module's availability wasn't established. If gluetun falls back to
-  userspace `wireguard-go`, encryption costs noticeably more CPU, which interacts with
-  the thermal budget above. gluetun's startup log states which it used; check it on
-  first run and adjust the upload cap if needed.
+- **Leak-check assertion 2 has not been run** — stopping gluetun to confirm
+  transmission loses all connectivity. It is the assertion that actually proves the
+  containment guarantee rather than inferring it, so run it before real use.
 - **Image tags are pinned to real, current upstream releases** (`gluetun v3.41.3`,
   `transmission 4.1.3-r0-ls357`, both resolved from their GitHub releases rather than
   guessed). This is stricter than the repo's existing upstream practice

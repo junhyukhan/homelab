@@ -18,13 +18,35 @@ property. §3 is how you prove it's still true.
 Log in and generate a WireGuard config at
 <https://windscribe.com/getconfig/wireguard>. You need three values out of it:
 
-| From the generated `.conf` | Goes to |
-|---|---|
-| `[Interface] PrivateKey` | `WIREGUARD_PRIVATE_KEY` |
-| `[Interface] Address` (e.g. `100.x.x.x/32`) | `WIREGUARD_ADDRESSES` |
-| `[Peer] PresharedKey` | `WIREGUARD_PRESHARED_KEY` |
+| From the generated `.conf` | Goes to | Watch out |
+|---|---|---|
+| `[Interface] PrivateKey` | `WIREGUARD_PRIVATE_KEY` | 44 base64 chars ending `=` |
+| `[Interface] Address` | `WIREGUARD_ADDRESSES` | **IPv4 part only** — see below |
+| `[Peer] PresharedKey` | `WIREGUARD_PRESHARED_KEY` | **not `PublicKey`** — they sit adjacent and look identical |
 
 Windscribe **requires** the preshared key — gluetun will not start without it.
+Paste values **unquoted**, and paste the value only (no label, no ` = `).
+
+> **The `Address` line carries IPv4 *and* IPv6**, comma-separated:
+> `Address = 100.72.14.9/32,fd54:4::5e2e:bbb3:7a9b:9a11/128`
+> Take only the IPv4 part with its `/32`. The box has no IPv6 and gluetun refuses
+> to start otherwise. This is also the *safer* setting, not a workaround: with no
+> IPv6 address in the tunnel the namespace has no IPv6 route at all, so
+> transmission cannot leak over IPv6 — a common hole in dual-stack setups.
+
+**Verify the two keys' shape without printing them:**
+
+```bash
+cd ~/homelab
+awk -F'=' '
+/^WIREGUARD_PRESHARED_KEY=/ { v=substr($0,25); k="PRESHARED" }
+/^WIREGUARD_PRIVATE_KEY=/   { v=substr($0,23); k="PRIVATE  " }
+v!="" { printf "%s len=%d charset_ok=%s ends_with_eq=%s\n", k, length(v),
+        (v ~ /^[A-Za-z0-9+/]+={0,2}$/ ? "yes" : "NO"), (v ~ /=$/ ? "yes" : "no"); v="" }
+' torrent/gluetun.env
+```
+
+Both lines must read `len=44 charset_ok=yes ends_with_eq=yes`.
 
 ### 1.2 Fill in the two gitignored env files, on the box
 
@@ -102,18 +124,57 @@ docker compose logs gluetun | grep -iE "wireguard|kernel|userspace"
 If it fell back to userspace, consider lowering the upload cap:
 `UPLOAD_LIMIT_KBPS=800 ./scripts/settings-transmission.sh`.
 
+**Measured 2026-08-14:** this box reports
+`[wireguard] Using available kernelspace implementation` — the cheap path. The
+thermal headroom is therefore better than the worst case assumed in SPEC.
+
 ### If gluetun won't start
 
-Almost always the region name or the key material:
+> #### ⚠️ First: after changing any env file, RECREATE — don't restart
+>
+> ```bash
+> docker compose up -d --force-recreate gluetun transmission
+> ```
+>
+> **Environment variables are baked into a container when it is CREATED.**
+> `restart: unless-stopped` restarts the *same container object* with its
+> *original* environment — so after you fix a value in `torrent/gluetun.env`, the
+> crash-loop keeps failing on the old one. The symptom is the worst kind: an
+> error you have already fixed, repeating with fresh timestamps.
+>
+> This cost real time on first setup (2026-08-14). The tell is comparing the file
+> against the container:
+>
+> ```bash
+> stat -c '%y' torrent/gluetun.env
+> docker inspect homelab-gluetun-1 --format '{{.Created}}'
+> ```
+>
+> If the file is newer than the container, it has not been read yet.
+>
+> **Recreate transmission alongside gluetun, always** — it lives in gluetun's
+> network namespace, and a namespace belongs to a container *instance*. A new
+> gluetun leaves transmission attached to one that no longer routes anywhere.
+
+gluetun validates settings in order and names the offending one, so read the
+**first** ERROR line, not the last:
 
 ```bash
-docker compose logs gluetun | tail -30
-# valid region names for your subscription tier:
-docker run --rm qmcgaw/gluetun:v3.41.3 format-servers -windscribe
+docker compose logs gluetun | grep ERROR | tail -5
 ```
+
+| Error | Cause | Fix |
+|---|---|---|
+| `pre-shared key is not valid: illegal base64 data at input byte N` | Wrong field pasted, or a stray character | Re-copy `PresharedKey` — **not `PublicKey`**; then run the shape check in §1.1 |
+| `interface address is IPv6 but IPv6 is not supported` | Copied the whole `Address` line | Keep the IPv4 `/32` only; drop the comma and everything after it |
+| server not found / no server matches | `SERVER_REGIONS` invalid for your plan tier | `docker run --rm qmcgaw/gluetun:v3.41.3 format-servers -windscribe` |
+| `i/o timeout` after "setup is complete" | Tunnel built but not passing traffic | Usually a dead server — try another region |
 
 A wrong `SERVER_REGIONS` fails loudly with a server-not-found error. "Build a
 Plan" subscriptions only reach the regions you actually purchased.
+
+**Confirmed working 2026-08-14:** `SERVER_REGIONS=Japan` resolves to a Tokyo exit
+(M247, Windscribe's host). It is no longer an unverified value.
 
 ---
 

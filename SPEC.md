@@ -240,6 +240,7 @@ readable in git.
 > `docker run --rm qmcgaw/gluetun:v3.41.3 format-servers -windscribe`. A wrong value fails
 > at startup with a server-not-found error — loud, not silent. `VPN_SERVER_REGIONS`
 > is a shared-`.env` key so the region can change without editing compose.
+> **Verified 2026-08-14:** `Japan` is valid and resolves to a Tokyo exit (M247).
 
 **transmission** — `lscr.io/linuxserver/transmission`, pinned to an explicit upstream
 version tag (`4.1.3-r0-ls357`) rather than `:latest`. Note this is *stricter* than
@@ -348,9 +349,11 @@ in a way that forecloses them.
   count — not the container itself — is the thing to watch.
 - **CPU/thermal budget is tighter than the RAM budget.** A 7th-gen laptop chassis
   running sustained seeding will heat-soak. This is why the upload cap exists, and
-  why it is a *thermal* setting rather than a bandwidth one. If the box's WireGuard
-  support turns out to be userspace (`wireguard-go`) rather than in-kernel, encryption
-  costs more CPU again — check gluetun's startup log, which says which it used.
+  why it is a *thermal* setting rather than a bandwidth one. **Measured 2026-08-14:**
+  gluetun uses the **kernelspace** WireGuard implementation on this box
+  (`[wireguard] Using available kernelspace implementation`), not userspace
+  `wireguard-go` — so encryption is on the cheap path and there is more headroom
+  than the worst case. Re-check that log line after a kernel or image change.
 - **Volume ownership.** State lives in named volumes (`registry_data`, `ha_data`,
   `transmission_config`, and the bind-backed `torrent_downloads`).
   When restoring data into them, file ownership must match `PUID`/`PGID`.
@@ -373,7 +376,7 @@ in a way that forecloses them.
 | `PUID`          | e.g. `1000`            | **now consumed** by transmission (a linuxserver image); still not by registry/HA, which run as root |
 | `PGID`          | e.g. `1000`            | **now consumed** by transmission — as above |
 | `TORRENT_DOWNLOADS` | `/srv/torrents`    | host path behind the `torrent_downloads` bind-volume. Must **exist on the box** or transmission refuses to start (by design). Point it at an external disk's mountpoint when there is one |
-| `VPN_SERVER_REGIONS` | `Japan`           | gluetun `SERVER_REGIONS`. Valid values come from `docker run --rm qmcgaw/gluetun:v3 format-servers -windscribe`, and depend on the Windscribe plan tier |
+| `VPN_SERVER_REGIONS` | `Japan`           | gluetun `SERVER_REGIONS`. Valid values come from `docker run --rm qmcgaw/gluetun:v3.41.3 format-servers -windscribe`, and depend on the Windscribe plan tier |
 | ~~`DURI_TAG`~~  | —                      | **retired** — duri's version is now pinned **inline** in `compose.yaml` (git SHA), like every other service. A leftover `DURI_TAG` in `.env` is harmless/unused; drop it when convenient |
 
 duri's own **application** secrets (`SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`,
