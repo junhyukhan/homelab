@@ -49,6 +49,17 @@
     -->
     <home>/var/run/gerbera</home>
 
+    <!--
+      MUST be set explicitly, and specifically BECAUSE <home> is overridden above.
+      Gerbera derives webroot from home when this is omitted, so it went looking
+      for /run/gerbera/upnp/cm.xml and crash-looped with:
+        error: filesystem error: cannot get file size ... [/run/gerbera/upnp/cm.xml]
+      The UPnP service descriptions (cm.xml, mr_reg.xml, cds.xml) ship inside the
+      image at this path — they are static image content, NOT writable state, so
+      they must point at the image, not at the named volume.
+    -->
+    <webroot>/usr/local/share/gerbera/web</webroot>
+
     <storage>
       <sqlite3 enabled="yes">
         <database-file>gerbera.db</database-file>
