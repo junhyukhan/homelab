@@ -142,13 +142,30 @@ services:
       - torrent_downloads:/downloads
     # This image ships NO healthcheck of its own (verified with `docker inspect`
     # — unlike gluetun above, which is why one is declared here and not there).
-    # Checks the RPC endpoint through the shared namespace. A 401 is a SUCCESS
-    # here: it proves transmission is listening and enforcing auth. Only a
-    # connection failure means it is actually down — which is also what we expect
-    # when gluetun stops, and is the second leak-check assertion.
-    # `curl` is present in this image (verified, not assumed).
+    #
+    # TWO conditions, and the second one matters more than it looks:
+    #
+    # 1. RPC answers. A 401 is a SUCCESS: it proves transmission is listening AND
+    #    enforcing auth. `curl` is present in this image (verified, not assumed).
+    #
+    # 2. gluetun's DNS resolves, queried explicitly at 127.0.0.1:53.
+    #    WHY: condition 1 alone reported "healthy" for six minutes while
+    #    transmission had NO network whatsoever (observed 2026-08-15). Stopping
+    #    and starting gluetun destroys its network namespace and builds a new one;
+    #    transmission does not rejoin, and is left holding a dead namespace. Its
+    #    own loopback listener still answers in there, so an RPC-only check passes
+    #    while the container is completely cut off — `docker compose ps` lies to
+    #    you about the single most likely failure in normal operation.
+    #    gluetun's DNS server runs in the LIVE namespace, so a dead namespace has
+    #    nothing on 127.0.0.1:53 and this check fails correctly.
+    #    Deliberate limit: this catches a dead namespace, not a tunnel that is up
+    #    but silently not passing traffic (gluetun caches DNS). Proving egress is
+    #    the leak check's job (docs/torrent.md §3), not a 60s poll's.
+    #    NOTE: a failing healthcheck is a SIGNAL, not an action — nothing
+    #    auto-restarts on it. The fix is always:
+    #      docker compose up -d --force-recreate transmission
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:9091/transmission/rpc | grep -qE '^(401|405|409|200)$$'"]
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:9091/transmission/rpc | grep -qE '^(401|405|409|200)$$' && nslookup -type=A github.com 127.0.0.1 >/dev/null 2>&1"]
       interval: 60s
       timeout: 10s
       retries: 3
