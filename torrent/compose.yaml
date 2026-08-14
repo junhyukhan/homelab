@@ -112,8 +112,19 @@ services:
       # the published loopback port, the request's source inside the netns is the
       # docker bridge gateway, NOT 127.0.0.1 — the default whitelist rejects it
       # with a "403 Unauthorized IP Address" that says nothing about why.
-      # Kept narrow (loopback + RFC1918 docker ranges) rather than "*".
-      WHITELIST: "127.0.0.1,::1,10.*.*.*,172.16.*.*,172.17.*.*,172.18.*.*,172.19.*.*,192.168.*.*"
+      # Scoped to loopback + RFC1918 rather than "*".
+      #
+      # NOTE: `172.*.*.*` is deliberate, NOT lazy. An earlier version enumerated
+      # 172.16-172.19 and broke immediately: Docker allocated this bridge as
+      # 172.20.0.0/16, so the gateway was outside the list and every request got
+      # "403 Unauthorized IP Address". Docker assigns bridge subnets DYNAMICALLY
+      # from 172.16.0.0/12, so any enumeration is a latent bug that reappears
+      # whenever a network is recreated. Breadth costs nothing here: the RPC port
+      # is published on 127.0.0.1 only, so the sole reachable sources are the host
+      # (via docker-proxy, appearing as the bridge gateway) and the namespace
+      # itself. The tailnet and the RPC password are the real boundaries.
+      # transmission's rpc-whitelist takes wildcards only — CIDR is not supported.
+      WHITELIST: "127.0.0.1,::1,10.*.*.*,172.*.*.*,192.168.*.*"
       # HOST_WHITELIST: transmission 4.x also checks the HOST HEADER, and
       # `tailscale serve` forwards the MagicDNS name. Without this the UI answers
       # "421 Misdirected Request" — a different error, same root cause.

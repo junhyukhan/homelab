@@ -165,6 +165,7 @@ docker compose logs gluetun | grep ERROR | tail -5
 
 | Error | Cause | Fix |
 |---|---|---|
+| `403 Unauthorized IP Address` from the web UI | The bridge gateway isn't in `WHITELIST`. Docker assigns bridge subnets **dynamically** from `172.16.0.0/12`, so enumerating specific `/16`s is a latent bug — it broke on first setup when the net came up as `172.20.0.0/16`. Check with `docker network inspect homelab_torrent_net --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}'` | `WHITELIST` covers `172.*.*.*`; recreate transmission |
 | `pre-shared key is not valid: illegal base64 data at input byte N` | Wrong field pasted, or a stray character | Re-copy `PresharedKey` — **not `PublicKey`**; then run the shape check in §1.1 |
 | `interface address is IPv6 but IPv6 is not supported` | Copied the whole `Address` line | Keep the IPv4 `/32` only; drop the comma and everything after it |
 | server not found / no server matches | `SERVER_REGIONS` invalid for your plan tier | `docker run --rm qmcgaw/gluetun:v3.41.3 format-servers -windscribe` |
