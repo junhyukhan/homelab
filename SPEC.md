@@ -23,7 +23,16 @@ Status: post-migration target state (k3s → Docker Compose).
 
 ## Non-goals
 
-- No orchestrator (k3s, Nomad, Swarm). One box, one `compose.yaml`.
+- No orchestrator (k3s, Nomad, Swarm). One box, one compose *stack*.
+  > **Amended 2026-08-14.** This used to read "one `compose.yaml`". It is now one
+  > stack assembled from more than one file: the root `compose.yaml` pulls in
+  > `torrent/compose.yaml` via compose's top-level `include:`. The intent behind
+  > the non-goal was *no orchestrator, no control plane* — not a literal one-file
+  > rule — and the torrent stack has a hard reason to sit in its own file (every
+  > service in it must be inside gluetun's network namespace, and a reader must
+  > not be able to add a sibling service without noticing that). `docker compose
+  > up -d` at the root still brings up everything, so the deploy loop is unchanged.
+  > See §Decisions and [`docs/decisions/torrent-vpn.md`](docs/decisions/torrent-vpn.md).
 - No CI-to-homelab pipeline. The deploy loop is human-driven over SSH (§ Deploy model).
 - No on-box builds. The box is RAM-constrained; it runs artifacts, it doesn't
   build them (see Decision: Pattern A).
@@ -40,7 +49,12 @@ Internet → Cloudflare Edge → cloudflared tunnel ─┐
                                                   ├─→ homelab_net (bridge) → registry
 Tailnet devices ──→ <tailscale-ip>:30500 ────────┤                        → duri ──→ Supabase cloud (egress)
                 ├─→ https://<box>.<magicdns> ──(tailscale serve · on-box TLS)──→ 127.0.0.1:3000 ─┘
+                ├─→ https://<box>.<magicdns>:8443 ─(tailscale serve)──→ 127.0.0.1:9091 ─┐
                 └─→ <tailscale-ip>:8123 ────────────────────────────────→ home-assistant (host net)
+                                                                                         │
+   ┌─────────────────────────────────────────────────────────────────────────────────────┘
+   │  gluetun (netns owner) ──WireGuard──→ Windscribe (Japan) ──→ BitTorrent swarm
+   └─→ transmission  ── network_mode: service:gluetun ── has NO network stack of its own
 ```
 
 - **The box:** an i7-7th-gen laptop, 8 GB RAM, Debian, headless. Reachable over
@@ -118,6 +132,8 @@ on this plane **only if a cloudflared ingress rule exists for it.**
 | home-assistant | LAN + Tailscale (intentional), never public | Reachable from both the home LAN and the tailnet, on purpose — housemates use it on the LAN, the human reaches it off-network over Tailscale. Host networking binds `:8123` on all host interfaces, which is exactly what's wanted here. No public (Cloudflare) route. Do **not** scope it to the tailnet with `server_host` / a firewall — that would break intended LAN access. |
 | cloudflared    | n/a (is the tunnel)      | — |
 | duri           | Tailscale-private, never public | Personal two-person app; both partners reach it over Tailscale (same as HA), but over **HTTPS via `tailscale serve`** at `https://<box>.<magicdns>` — duri is a PWA and needs a secure context. The container port is bound to **loopback** (`127.0.0.1:3000`); serve is the only tailnet-facing door. Its Supabase-cloud backend is reached by egress — nothing inbound. A public route is a possible future upgrade (cloudflared ingress), not the current design. |
+| gluetun        | Tailscale-private, never public | Owns the torrent namespace. Publishes transmission's UI on **loopback** (`127.0.0.1:9091`) only. Its *egress* does not use the box's ISP route at all — it goes out over WireGuard to Windscribe. Never gets a cloudflared ingress: a public door into a VPN namespace defeats the point of the namespace. |
+| transmission   | Tailscale-private, never public | Has **no network stack of its own** (`network_mode: service:gluetun`), so it has no plane independent of gluetun's — this is the containment guarantee, not a convenience. Reached over Tailscale at **`https://<box>.<magicdns>:8443`** via a second `tailscale serve` mount. RPC is password-protected *in addition to* the tailnet boundary. |
 
 At migration time the ingress list has **no real routes** — only a commented
 example and the `http_status:404` catch-all. Nothing currently needs a public door.
@@ -126,7 +142,7 @@ example and the `http_status:404` catch-all. Nothing currently needs a public do
 
 ## Services
 
-Four services. That's the whole homelab.
+Six services. That's the whole homelab.
 
 | Service        | Image                                          | Networking          | State             | Plane             |
 |----------------|------------------------------------------------|---------------------|-------------------|-------------------|
@@ -134,6 +150,8 @@ Four services. That's the whole homelab.
 | registry       | `registry:2`                                   | published `${TAILSCALE_IP}:30500:5000` | `registry_data` vol | Tailscale-private |
 | home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol    | LAN + Tailscale (intentional), never public |
 | duri           | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`, published `127.0.0.1:3000`; HTTPS via `tailscale serve` | none (stateless; data in Supabase cloud) | Tailscale-private |
+| gluetun        | `qmcgaw/gluetun:v3.41.3`                       | `homelab_net`, published `127.0.0.1:9091`; **owns the torrent netns** | none | Tailscale-private |
+| transmission   | `lscr.io/linuxserver/transmission:4.1.3-r0-ls357` | **`network_mode: service:gluetun`** — no stack of its own | `transmission_config` vol + `torrent_downloads` bind-volume | Tailscale-private (via gluetun) |
 
 **cloudflared** — locally-managed tunnel. Runs
 `tunnel --no-autoupdate --config /etc/cloudflared/config.yml run`. Mounts the
@@ -180,6 +198,111 @@ gitignored `duri.env` consumed via `env_file` (kept out of the shared `.env`); t
 so aren't runtime env here. Going public later is an additive cloudflared ingress +
 Cloudflare Access decision — not designed in now.
 
+### The torrent stack — gluetun + transmission
+
+Lives in its own file, [`torrent/compose.yaml`](torrent/compose.yaml), pulled into the
+root stack by compose `include:`. Purpose: run BitTorrent so that **every packet it
+sends or receives goes through the Windscribe VPN tunnel, with no code path that can
+fall back to the home ISP connection.**
+
+**The namespace-sharing guarantee — the whole design rests on this.**
+`transmission` is declared `network_mode: "service:gluetun"`. It therefore has **no
+network interfaces of its own**: it shares gluetun's Linux network namespace, whose
+only routes are `lo` and gluetun's WireGuard `tun0`. This is not a firewall rule, a
+policy, or a "leak protection" feature that can be misconfigured — transmission is
+*structurally incapable* of reaching the ISP, in the same way a process with no
+socket cannot open a connection. Two consequences follow, and both are load-bearing:
+
+- **If gluetun stops, transmission loses all connectivity** — it does not fall back,
+  it goes dark. That is the desired failure mode, and it is the second acceptance
+  test in the leak-check runbook. `depends_on` with `service_healthy` also means
+  transmission won't *start* until the tunnel is actually up.
+- **`ports:` and `networks:` may appear on `gluetun` ONLY.** A container using
+  `network_mode: service:` has no stack to publish from; compose does not reject
+  these keys on such a service, it **silently ignores them** — the UI would simply
+  never be reachable and nothing would say why. Both keys are commented as such at
+  the transmission block. Anything later added to this stack that needs the tunnel
+  gets `network_mode: "service:gluetun"` too, and publishes via gluetun.
+
+**gluetun** — `VPN_SERVICE_PROVIDER=windscribe`, `VPN_TYPE=wireguard`,
+`SERVER_REGIONS=${VPN_SERVER_REGIONS}` (default `Japan` — lowest latency from Korea).
+Needs `cap_add: NET_ADMIN` and `/dev/net/tun` to create the WireGuard interface. The
+three pieces of key material (`WIREGUARD_PRIVATE_KEY`, `WIREGUARD_ADDRESSES`,
+`WIREGUARD_PRESHARED_KEY`) come from a gitignored `torrent/gluetun.env` — they are the
+only secrets in the stack and they are never in git. Windscribe **requires** the
+preshared key to be set; obtain all three from <https://windscribe.com/getconfig/wireguard>.
+Non-secret VPN config stays inline in `torrent/compose.yaml` so the routing is
+readable in git.
+
+> **`SERVER_REGIONS` values are gluetun's, not Windscribe's marketing names**, and
+> they vary by subscription tier ("Build a Plan" accounts only reach purchased
+> regions). The authoritative list is the image's own:
+> `docker run --rm qmcgaw/gluetun:v3.41.3 format-servers -windscribe`. A wrong value fails
+> at startup with a server-not-found error — loud, not silent. `VPN_SERVER_REGIONS`
+> is a shared-`.env` key so the region can change without editing compose.
+
+**transmission** — `lscr.io/linuxserver/transmission`, pinned to an explicit upstream
+version tag (`4.1.3-r0-ls357`) rather than `:latest`. Note this is *stricter* than
+cloudflared (`:latest`) and Home Assistant (`:stable`): a torrent client's settings
+semantics are exactly the kind of thing a silent major-version bump changes underneath
+a config file, and this stack's correctness depends on those settings. Two volumes:
+
+- `transmission_config:/config` — a named volume, per the usual state rule.
+- `torrent_downloads:/downloads` — a **named volume that binds to a host path**
+  (`type: none, o: bind, device: ${TORRENT_DOWNLOADS}`, default `/srv/torrents`).
+  Bulk media does not belong inside `/var/lib/docker`, and this form makes the disk
+  swappable later without touching compose. **Why this form and not a plain
+  `volumes: - /srv/torrents:/downloads` bind:** a plain bind mount whose host path is
+  missing is *silently created as an empty root-owned directory* by Docker — so the
+  day an external disk fails to mount, transmission would cheerfully fill the box's
+  internal SSD instead, and nothing would report it. The bind-volume form **refuses
+  to start the container** (`failed to mount local volume: … no such file or
+  directory`). Verified on the box, not assumed. There is **no external disk today**;
+  `/srv/torrents` is on the 238 GB internal NVMe (~200 G free) and the runbook's
+  `mkdir` step is what makes it exist.
+
+Settings that BitTorrent-over-VPN correctness depends on — **fixed peer port, UPnP and
+NAT-PMP off, Local Peer Discovery off, a global upload cap** — are *not* env vars in
+this image; they live in `/config/settings.json`, which transmission **rewrites on
+shutdown**, so hand-editing a running container's copy is silently discarded.
+`scripts/settings-transmission.sh` is therefore the git-tracked source of truth for
+them, asserted over `transmission-remote` (the same "a script is the source of truth
+for out-of-compose state" pattern `serve-duri.sh` established). Why each matters:
+
+- **UPnP/NAT-PMP off** — port-mapping requests would be aimed at the *router* and are
+  a classic way for a client to announce itself outside the tunnel. Also pointless
+  here: the box publishes no inbound ports by design.
+- **Local Peer Discovery off** — LPD multicasts on the local network, i.e. the home
+  LAN, which is precisely the leak the tunnel exists to prevent.
+- **Fixed peer port** — a stable port is a prerequisite for adding Windscribe
+  ephemeral port forwarding later (out of scope now, see below) and keeps the
+  behaviour reproducible run-to-run.
+- **Global upload cap** — thermal, not network: sustained seeding pins the CPU on a
+  7th-gen laptop chassis that also runs Home Assistant and duri.
+
+RPC is password-protected via the `USER`/`PASS` env vars in a gitignored
+`torrent/transmission.env`. **Do not put credentials into `settings.json` by hand** —
+the image's docs are explicit that doing so prevents s6 from stopping transmission
+cleanly. Two whitelists also have to be widened or the UI is unreachable *through
+`tailscale serve`* in two different, confusingly-worded ways: `rpc-whitelist` sees the
+request's source as the docker bridge gateway rather than `127.0.0.1` (**403
+Unauthorized IP Address**), and `rpc-host-whitelist` sees `Host:
+<box>.<magicdns>` (**421 Misdirected Request**). `WHITELIST` and `HOST_WHITELIST`
+handle these; both are narrow allowlists, not `*`.
+
+**Access path** — `tailscale serve` on a **second HTTPS port, 8443**:
+`https://<box>.<magicdns>:8443` → `127.0.0.1:9091`, asserted by
+`scripts/serve-transmission.sh`. It has to be a second port because **duri already
+owns `/` on 443**; re-serving the root would replace duri's mount and take duri down.
+A path prefix (`--set-path /transmission`) was rejected: transmission serves and
+redirects to absolute `/transmission/web/` paths, which collide with serve's
+prefix-stripping. The 443/8443/10000 restriction people remember applies to
+**Funnel**, not serve — serve accepts any port; 8443 is chosen by convention.
+
+**Leak-check procedure: [`docs/torrent.md`](docs/torrent.md)** — first-run setup plus
+the three assertions (exit IP is Windscribe's, transmission goes dark when gluetun
+stops, UI is tailnet-only). Run it after any change to this stack.
+
 ### Anticipated future services (not built now)
 
 Home Assistant's voice/media follow-ups (see `plan/home-assistant-followups.md`):
@@ -197,6 +320,18 @@ financial data means a perimeter so RLS isn't the sole boundary. App-side extern
 household onboarding is the real work (tracked in duri's `build/progress.md`); the
 homelab side is just the ingress rule + Access policy when it's picked up.
 
+**Windscribe ephemeral port forwarding (out of scope, deliberately).** Without a
+forwarded port transmission is connectable *outbound only* — it can reach peers that
+accept connections but no peer can initiate to it, which costs swarm performance and
+makes it a partial ("no-incoming") peer. The fix is Windscribe's ephemeral port
+forwarding (e.g. the `ws-ephemeral` helper), which needs **renewal every 7 days** —
+a standing automation, which is exactly the kind of thing this repo asks about before
+adding. It is **compatible with the no-inbound-ports design**: the forwarded port is
+opened at Windscribe's edge and arrives *inside the tunnel*, so the box still opens
+nothing on the home router. Adding it later means the port becomes a
+`FIREWALL_VPN_INPUT_PORTS` value on gluetun plus a matching transmission peer port —
+which is why the peer port is fixed and declared now rather than left random.
+
 The current design blocks none of these. Don't build them now; just don't design
 in a way that forecloses them.
 
@@ -206,8 +341,21 @@ in a way that forecloses them.
 
 - **8 GB RAM budget.** Everything runs on one modest box. This is the reason for
   no orchestrator, no on-box builds, and keeping the service count small.
-- **Volume ownership.** State lives in named volumes (`registry_data`, `ha_data`).
+  Measured 2026-08-14 before adding the torrent stack: 7.6 Gi total, **6.3 Gi
+  available**, containers totalling ~578 MB (home-assistant 479, duri 74,
+  registry 25). gluetun (~30 MB) + transmission (~100 MB idle) fit with wide
+  margin; transmission's RAM grows with the number of active torrents, so that
+  count — not the container itself — is the thing to watch.
+- **CPU/thermal budget is tighter than the RAM budget.** A 7th-gen laptop chassis
+  running sustained seeding will heat-soak. This is why the upload cap exists, and
+  why it is a *thermal* setting rather than a bandwidth one. If the box's WireGuard
+  support turns out to be userspace (`wireguard-go`) rather than in-kernel, encryption
+  costs more CPU again — check gluetun's startup log, which says which it used.
+- **Volume ownership.** State lives in named volumes (`registry_data`, `ha_data`,
+  `transmission_config`, and the bind-backed `torrent_downloads`).
   When restoring data into them, file ownership must match `PUID`/`PGID`.
+  transmission is a linuxserver image and **does** honour `PUID`/`PGID` — the first
+  service here that does, which is what those long-reserved keys were for.
 - **Secrets.** `.env` (gitignored), the per-app `duri.env` (gitignored), and the
   cloudflared credentials JSON (human-supplied, gitignored) never enter git. The repo
   ships `.env.example` only. There is **no `TUNNEL_TOKEN`** in the new design (see
@@ -222,8 +370,10 @@ in a way that forecloses them.
 | `TZ`            | `Asia/Seoul`           | home-assistant (`TZ`), and future services |
 | `REGISTRY_HOST` | `100.65.77.63:30500`   | image refs for own services (`${REGISTRY_HOST}/...`), docs |
 | `BASE_DOMAIN`   | (human's domain)       | reserved — used by cloudflared ingress hostnames once a public route exists |
-| `PUID`          | e.g. `1000`            | reserved — forward-looking for future services; **not** consumed by registry/HA (they run as root) |
-| `PGID`          | e.g. `1000`            | reserved — as above |
+| `PUID`          | e.g. `1000`            | **now consumed** by transmission (a linuxserver image); still not by registry/HA, which run as root |
+| `PGID`          | e.g. `1000`            | **now consumed** by transmission — as above |
+| `TORRENT_DOWNLOADS` | `/srv/torrents`    | host path behind the `torrent_downloads` bind-volume. Must **exist on the box** or transmission refuses to start (by design). Point it at an external disk's mountpoint when there is one |
+| `VPN_SERVER_REGIONS` | `Japan`           | gluetun `SERVER_REGIONS`. Valid values come from `docker run --rm qmcgaw/gluetun:v3 format-servers -windscribe`, and depend on the Windscribe plan tier |
 | ~~`DURI_TAG`~~  | —                      | **retired** — duri's version is now pinned **inline** in `compose.yaml` (git SHA), like every other service. A leftover `DURI_TAG` in `.env` is harmless/unused; drop it when convenient |
 
 duri's own **application** secrets (`SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`,
@@ -298,6 +448,28 @@ All **LOCKED** — do not re-open without asking.
 - **No `:latest` for own images.** Version tags (`duri:v1`) or git-SHA tags.
   `:latest` won't re-pull reliably on `up -d`.
 - **Home Assistant stays `network_mode: host`.** Required for mDNS/SSDP discovery.
+- **Torrent traffic is contained by a shared network namespace, not by rules**
+  (added 2026-08-14). transmission runs `network_mode: "service:gluetun"`, so it has
+  no interfaces beyond gluetun's WireGuard tunnel and cannot route to the ISP even
+  if misconfigured. Chosen over a firewall/killswitch approach because a namespace
+  has no failure mode where a rule is missing, mis-ordered, or flushed. The direct
+  cost is the `ports:`/`networks:`-on-gluetun-only constraint, which compose enforces
+  by *silence* rather than by error — hence the inline comments. See
+  [`docs/decisions/torrent-vpn.md`](docs/decisions/torrent-vpn.md).
+- **The torrent stack is a separate compose file, included** (added 2026-08-14).
+  `torrent/compose.yaml` + root `include:`. Keeping the namespace-sharing services
+  in one file makes the guarantee legible and makes it hard to add a service to the
+  stack without confronting it. It stays *one* stack — `docker compose up -d` at the
+  root is unchanged — so this is not a second control plane. Amends the "one
+  `compose.yaml`" wording in §Non-goals.
+- **Transmission's UI gets its own `tailscale serve` port, 8443** (added 2026-08-14).
+  duri already holds `/` on 443; re-serving root would silently replace duri's mount.
+  A `--set-path` prefix breaks on transmission's absolute `/transmission/web/`
+  redirects. Serve (unlike Funnel) is not restricted to 443/8443/10000, so the port
+  is a convention choice, not a constraint.
+- **No public route for anything in the torrent stack, ever.** A cloudflared ingress
+  into a VPN namespace would defeat the namespace. This is a standing exception
+  alongside the registry's.
 
 ---
 

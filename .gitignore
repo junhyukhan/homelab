@@ -5,6 +5,10 @@
 # Ship only the *.env.example templates.
 duri.env
 
+# Torrent stack secrets: WireGuard key material and the transmission RPC
+# password. Matches *.env, so the *.env.example templates are still tracked.
+torrent/*.env
+
 # cloudflared tunnel credentials (created by `cloudflared tunnel create`,
 # named <tunnel-id>.json). Scoped on purpose — do NOT blanket-ignore *.json;
 # a config/compose tool may legitimately want a tracked JSON later.

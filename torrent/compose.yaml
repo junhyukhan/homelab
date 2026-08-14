@@ -1,0 +1,174 @@
+# Torrent stack — transmission confined inside gluetun's WireGuard namespace.
+#
+# Pulled into the root stack by `include:` in ../compose.yaml, so the normal
+# deploy loop is unchanged:
+#
+#   git pull && docker compose up -d        # (from the repo root, on the box)
+#
+# See SPEC.md §"The torrent stack" for the design and
+# docs/torrent.md for first-run setup + the leak check. Secrets/config not in git:
+#   torrent/gluetun.env        — WireGuard key material (copy from .env.example)
+#   torrent/transmission.env   — RPC user/password (copy from .env.example)
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THE ONE RULE IN THIS FILE
+#
+# `ports:` and `networks:` belong to **gluetun ONLY**.
+#
+# transmission runs with `network_mode: "service:gluetun"`, meaning it shares
+# gluetun's network namespace and has NO network stack of its own. Compose does
+# NOT error if you add `ports:` or `networks:` to such a service — it IGNORES
+# them. The result is a service that looks configured, starts cleanly, reports
+# healthy, and is simply unreachable forever. Publish from gluetun instead.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # The VPN tunnel, and the owner of the network namespace transmission lives in.
+  # Everything transmission sends or receives crosses this container's WireGuard
+  # interface; there is no route from that namespace to the home ISP.
+  gluetun:
+    image: qmcgaw/gluetun:v3.41.3
+    restart: unless-stopped
+    # NET_ADMIN + /dev/net/tun are what let gluetun create the wg interface.
+    # Without them it cannot bring the tunnel up at all (it will not silently
+    # run unprotected — it exits).
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      VPN_SERVICE_PROVIDER: windscribe
+      VPN_TYPE: wireguard
+      # gluetun's own region names, NOT Windscribe's marketing names, and gated by
+      # subscription tier ("Build a Plan" reaches only purchased regions). List them:
+      #   docker run --rm qmcgaw/gluetun:v3.41.3 format-servers -windscribe
+      # Japan is the default: lowest latency from Korea. A wrong value fails loudly
+      # at startup with a server-not-found error.
+      SERVER_REGIONS: ${VPN_SERVER_REGIONS:-Japan}
+      TZ: ${TZ}
+      # Health/DNS defaults are gluetun's own and are deliberately left alone —
+      # its built-in DNS-over-TLS keeps lookups inside the tunnel too, which is
+      # the leak most "VPN but DNS went to the ISP" setups miss.
+    # Key material ONLY (private key, addresses, preshared key). Non-secret VPN
+    # config stays inline above so the routing is readable in git.
+    # Windscribe REQUIRES WIREGUARD_PRESHARED_KEY to be set.
+    env_file:
+      - gluetun.env
+    ports:
+      # Transmission's web UI — published HERE because transmission has no stack
+      # of its own. Bound to LOOPBACK only: the sole tailnet-facing door is
+      # HTTPS via `tailscale serve` on :8443 (scripts/serve-transmission.sh),
+      # matching how duri is fronted. Never 0.0.0.0 — that would put an
+      # RPC-authenticated torrent client on the home LAN.
+      - "127.0.0.1:9091:9091"
+      # NOTE: the fixed peer port is deliberately NOT published. Inbound peer
+      # connections would have to arrive through the tunnel (Windscribe port
+      # forwarding), never through the host — see SPEC.md, out of scope for now.
+    # NO healthcheck block here on purpose. The image already ships one
+    # (`CMD-SHELL /gluetun-entrypoint healthcheck`, 5s/5s/10s, verified with
+    # `docker inspect`) which checks that the tunnel is actually carrying
+    # traffic, not merely that the interface exists. Compose inherits it, and
+    # transmission's `service_healthy` dependency hangs off it — so a dead tunnel
+    # means transmission never starts rather than starting unprotected.
+    # Re-declaring it here would only risk pinning a binary path that upstream
+    # may move, which would silently break the dependency gate.
+    networks:
+      # Its OWN bridge, not homelab_net. Nothing in this stack has any business
+      # reaching the registry, duri or Home Assistant, and nothing on
+      # homelab_net needs to reach it — so the blast radius stays here. It also
+      # keeps this file self-contained, which `include:` wants: a network
+      # declared in two files must be declared identically in both.
+      - torrent_net
+
+  # Transmission. Has no network interfaces of its own — see THE ONE RULE above.
+  transmission:
+    image: lscr.io/linuxserver/transmission:4.1.3-r0-ls357
+    restart: unless-stopped
+    # ═══ THE CONTAINMENT GUARANTEE ═══
+    # Shares gluetun's network namespace. transmission cannot reach the ISP
+    # because it has no interface that routes there — this is structural, not a
+    # firewall rule that could be missing, mis-ordered, or flushed. If gluetun
+    # stops, transmission goes dark rather than falling back. Do not "fix" a
+    # connectivity problem here by giving this service a network.
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        # Not just `started` — wait for the tunnel to pass its health check, so
+        # transmission never comes up before there is somewhere safe to send.
+        condition: service_healthy
+    environment:
+      # transmission is a linuxserver image and DOES honour PUID/PGID (the first
+      # service here that does — registry and HA run as root). These must match
+      # the ownership of ${TORRENT_DOWNLOADS} on the box or writes fail.
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+      # Fixed peer port. Stable rather than random so behaviour is reproducible
+      # and so Windscribe ephemeral port forwarding can be pointed at it later
+      # without changing anything else (SPEC.md §Anticipated future services).
+      PEERPORT: 51413
+      # ── The two whitelists, both of which reject `tailscale serve` by default ──
+      # WHITELIST: transmission's rpc-whitelist checks the SOURCE IP. Arriving via
+      # the published loopback port, the request's source inside the netns is the
+      # docker bridge gateway, NOT 127.0.0.1 — the default whitelist rejects it
+      # with a "403 Unauthorized IP Address" that says nothing about why.
+      # Kept narrow (loopback + RFC1918 docker ranges) rather than "*".
+      WHITELIST: "127.0.0.1,::1,10.*.*.*,172.16.*.*,172.17.*.*,172.18.*.*,172.19.*.*,192.168.*.*"
+      # HOST_WHITELIST: transmission 4.x also checks the HOST HEADER, and
+      # `tailscale serve` forwards the MagicDNS name. Without this the UI answers
+      # "421 Misdirected Request" — a different error, same root cause.
+      HOST_WHITELIST: "jun-hp-spectre.tail114865.ts.net,localhost,127.0.0.1"
+    # RPC credentials. Set via env, NOT by hand-editing settings.json — the
+    # image's docs are explicit that credentials written into settings.json stop
+    # s6 from shutting transmission down cleanly.
+    env_file:
+      - transmission.env
+    volumes:
+      # Config: an ordinary named volume, per SPEC's state rule.
+      - transmission_config:/config
+      # Downloads: a named volume that BINDS to a host path — see the volumes
+      # block below for why this form and not a plain bind mount.
+      - torrent_downloads:/downloads
+    # This image ships NO healthcheck of its own (verified with `docker inspect`
+    # — unlike gluetun above, which is why one is declared here and not there).
+    # Checks the RPC endpoint through the shared namespace. A 401 is a SUCCESS
+    # here: it proves transmission is listening and enforcing auth. Only a
+    # connection failure means it is actually down — which is also what we expect
+    # when gluetun stops, and is the second leak-check assertion.
+    # `curl` is present in this image (verified, not assumed).
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf -o /dev/null -w '%{http_code}' http://127.0.0.1:9091/transmission/rpc | grep -qE '^(401|405|409|200)$$'"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # NO `ports:` and NO `networks:` here — see THE ONE RULE at the top of this
+    # file. Both would be silently ignored. gluetun publishes 9091 on its behalf.
+
+networks:
+  torrent_net:
+    driver: bridge
+
+volumes:
+  transmission_config:
+  # Downloads live on a host path, not inside /var/lib/docker — bulk media
+  # doesn't belong in the docker root, and this keeps the disk swappable.
+  #
+  # WHY THIS FORM AND NOT `- /srv/torrents:/downloads`:
+  # A plain bind mount whose host path is missing is SILENTLY CREATED by Docker
+  # as an empty root-owned directory. On the day an external disk fails to mount,
+  # transmission would happily fill the box's internal SSD and every status
+  # command would report healthy. This form refuses to start the container:
+  #   failed to mount local volume: mount /srv/torrents: no such file or directory
+  # (verified on the box, not assumed). The runbook's mkdir step is what makes
+  # the path exist; see docs/torrent.md.
+  #
+  # There is NO external disk on the box today — ${TORRENT_DOWNLOADS} defaults to
+  # /srv/torrents on the internal NVMe (~200 G free). Point it at a real disk's
+  # mountpoint when there is one; nothing else changes.
+  torrent_downloads:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${TORRENT_DOWNLOADS:-/srv/torrents}

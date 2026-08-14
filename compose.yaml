@@ -10,6 +10,15 @@
 
 name: homelab
 
+# The torrent stack (gluetun + transmission) lives in its own file because every
+# service in it must share gluetun's network namespace — keeping them together
+# makes that guarantee legible and makes it hard to add a sibling service without
+# confronting it. It is still ONE stack: `docker compose up -d` here brings up
+# everything, and `docker compose ps` lists it all. See SPEC.md §"The torrent
+# stack" and docs/decisions/torrent-vpn.md.
+include:
+  - torrent/compose.yaml
+
 services:
   # The tunnel. Egress-only; opens no inbound ports. Locally-managed —
   # routes live in ./cloudflared/config.yml (git-tracked), creds JSON is

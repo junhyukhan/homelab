@@ -12,7 +12,11 @@ Internet → Cloudflare Edge → cloudflared tunnel ─┐
                                                   ├─→ homelab_net → registry
 Tailnet devices → 100.65.77.63:30500 ────────────┤               → duri → Supabase cloud (egress)
               ├─→ https://jun-hp-spectre.tail114865.ts.net ─(tailscale serve · TLS)→ 127.0.0.1:3000 → duri
+              ├─→ https://jun-hp-spectre.tail114865.ts.net:8443 ─(serve)→ 127.0.0.1:9091 → transmission
               └─→ 100.65.77.63:8123 ─────────────────────────────→ home-assistant (host net)
+
+  torrent stack:  gluetun ──WireGuard──→ Windscribe (Japan) ──→ BitTorrent swarm
+                     └── transmission shares its namespace; no other route exists
 ```
 
 - **The box:** i7-7th-gen laptop, 8 GB RAM, Debian, headless, on Tailscale.
@@ -28,10 +32,20 @@ Tailnet devices → 100.65.77.63:30500 ────────────┤  
 | registry       | `100.65.77.63:30500`   | `homelab_registry_data`| Tailscale-private (port bound to `${TAILSCALE_IP}`) |
 | home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | LAN + Tailscale (intentional), never public |
 | duri           | `https://jun-hp-spectre.tail114865.ts.net` | none (data in Supabase cloud) | Tailscale-private, HTTPS via `tailscale serve` (container on loopback `127.0.0.1:3000`) |
+| gluetun        | — (owns the torrent netns) | none                   | Tailscale-private, never public |
+| transmission   | `https://jun-hp-spectre.tail114865.ts.net:8443` | `homelab_transmission_config` + `homelab_torrent_downloads` (binds `/srv/torrents`) | Tailscale-private via gluetun, never public |
 
 `100.65.77.63:30500` (`${REGISTRY_HOST}`) is the one canonical registry address —
 there is no `registry.homelab` name. Home Assistant uses host networking for
 mDNS/SSDP discovery, so it's reached on the host IP directly, not via the bridge.
+
+**transmission has no network of its own** — it runs in gluetun's namespace
+(`network_mode: "service:gluetun"`), so all its traffic crosses the Windscribe
+WireGuard tunnel and it goes dark if gluetun stops. Its UI is published *by
+gluetun* on loopback and fronted by `tailscale serve` on **:8443** (duri holds
+`/` on 443). Consequence worth knowing before you touch it: **recreating gluetun
+means recreating transmission**, since the namespace belongs to the container
+instance. See [docs/torrent.md](docs/torrent.md).
 
 ## Quick start
 
@@ -39,6 +53,10 @@ Config not in git, set up once (see the runbooks below):
 
 - `.env` — copy from `.env.example`, fill in.
 - `cloudflared/<tunnel-id>.json` — the tunnel credentials (`docs/tunnel-setup.md`).
+- `torrent/gluetun.env` + `torrent/transmission.env` — WireGuard key material and
+  the RPC password, both from their `.example` templates (`docs/torrent.md`).
+  `/srv/torrents` must also exist on the box, or transmission refuses to start —
+  that refusal is deliberate, see [SPEC.md](SPEC.md).
 
 Then, from the box over Tailscale SSH:
 
@@ -97,6 +115,11 @@ docker --context homelab compose up -d
 - **Expose something publicly:** add a cloudflared ingress rule + DNS CNAME +
   Cloudflare Access policy. Default is Tailscale-private; public is opt-in per
   service. See [SPEC.md](SPEC.md) §Access planes.
+- **Torrent stack (gluetun + transmission):** first-run setup and the **leak
+  check** are in [docs/torrent.md](docs/torrent.md). Two scripts own its
+  out-of-compose state — `./scripts/settings-transmission.sh` (peer port,
+  UPnP/NAT-PMP off, LPD off, upload cap) and `./scripts/serve-transmission.sh`
+  (HTTPS on :8443). **Re-run the leak check after any change to that stack.**
 
 Whenever a permanent service changes, update [SPEC.md](SPEC.md) first, then the code.
 
@@ -108,5 +131,6 @@ Whenever a permanent service changes, update [SPEC.md](SPEC.md) first, then the 
 | [docs/bootstrap.md](docs/bootstrap.md) | Stand up the box from a clean Debian install to a running stack |
 | [docs/tunnel-setup.md](docs/tunnel-setup.md) | Create the locally-managed cloudflared tunnel |
 | [docs/add-a-service.md](docs/add-a-service.md) | Steady-state workflow for new services |
+| [docs/torrent.md](docs/torrent.md) | Torrent stack: Windscribe prerequisites, first run, **leak check** |
 
 The pre-migration k3s manifests are preserved on the **`legacy-k3s`** branch.
