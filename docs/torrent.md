@@ -91,6 +91,18 @@ never appear in the projector's 콘텐츠 공유 list.
 > bind-volume form, which refuses to start rather than inventing the directory.
 > If you ever see `root root` here, fix it with the `chown` above and recreate.
 
+> **If `cdrom/`, `floppy/` and `usb/` appear inside `complete/`**, gerbera's
+> `/media` mount lost its `nocopy: true`. A named volume copies the *image's*
+> contents at the mount path into the volume on first mount, and the gerbera
+> image ships `/media/{cdrom,floppy,usb}` — so they get written into your
+> downloads directory as root, which then breaks transmission's move *and*
+> shows three phantom folders in 콘텐츠 공유. Fix:
+>
+> ```bash
+> rmdir /srv/torrents/complete/cdrom /srv/torrents/complete/floppy /srv/torrents/complete/usb
+> docker compose up -d --force-recreate gerbera
+> ```
+
 There is **no external disk on the box today** — `/srv/torrents` is on the
 internal NVMe (~200 G free). When a real disk arrives: mount it, point
 `TORRENT_DOWNLOADS` in `.env` at its mountpoint, `docker compose up -d`.

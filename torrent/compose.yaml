@@ -194,6 +194,14 @@ volumes:
   # There is NO external disk on the box today — ${TORRENT_DOWNLOADS} defaults to
   # /srv/torrents on the internal NVMe (~200 G free). Point it at a real disk's
   # mountpoint when there is one; nothing else changes.
+  #
+  # NOTE: no `nocopy` needed here, unlike gerbera's /media mount in the root
+  # compose.yaml. A named volume copies the IMAGE's contents at the mount path
+  # into the volume on first mount, and this image ships no /downloads directory
+  # at all (verified with `docker run --entrypoint sh ... -c "ls /downloads"`),
+  # so there is nothing to copy. gerbera's image DOES ship /media/{cdrom,floppy,
+  # usb}, which is why that one needs nocopy and this one does not. transmission
+  # creates complete/ and incomplete/ itself at runtime, as PUID:PGID.
   torrent_downloads:
     driver: local
     driver_opts:

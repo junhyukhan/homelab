@@ -169,8 +169,29 @@ services:
       # to a sibling incomplete/ and moves them on completion (same filesystem =
       # atomic rename). Scanning the parent would surface half-written files as
       # broken entries in the projector's 콘텐츠 공유 list.
-      # Uses the guarded bind-volume form (see volumes: below), NOT a plain bind.
-      - torrent_complete:/media:ro
+      # Guarded bind-volume (see volumes: below), NOT a plain bind — but declared
+      # in LONG FORM specifically to set `nocopy: true`.
+      #
+      # WHY nocopy IS LOAD-BEARING HERE:
+      # A named volume, unlike a plain bind, COPIES the image's contents at that
+      # path into the volume on first mount. This image ships
+      # /media/{cdrom,floppy,usb}, so the short form silently copied those three
+      # directories into ${TORRENT_DOWNLOADS}/complete — as root. That single
+      # side effect caused three separate failures on 2026-08-15:
+      #   1. the host directory became root-owned,
+      #   2. transmission (uid 1000) then failed every completed download with
+      #      "Unable to create directory for new file: Permission denied (13)",
+      #   3. phantom cdrom/floppy/usb folders appeared in the projector's
+      #      콘텐츠 공유 browse tree.
+      # nocopy keeps the missing-path guard while making the mount strictly a
+      # view of the host directory. Never use the short form for a read mount
+      # whose target path exists in the image.
+      - type: volume
+        source: torrent_complete
+        target: /media
+        read_only: true
+        volume:
+          nocopy: true
     # NO `ports:` key. Under network_mode: host it would be silently IGNORED —
     # the same trap as `ports:` on a network_mode: service: container in the
     # torrent stack. Gerbera binds 49494/tcp (HTTP) and 1900/udp (SSDP) directly
