@@ -1,0 +1,69 @@
+# Living-room audio — WiiM Mini input switching.
+#
+# WHY THIS EXISTS
+# ---------------
+# The Marshall Acton III is a dumb amp: one active input, chosen by a PHYSICAL
+# selector no software can reach. The fix was to stop switching it at all — the
+# projector's Bluetooth was re-pointed at the WiiM Mini instead of the Marshall,
+# so the Marshall now sits on AUX permanently and the WiiM is the only source it
+# ever hears.
+#
+# The cost of that: the WiiM has exactly ONE active input (network | bluetooth |
+# line-in), so the contention moved from the speaker to the WiiM — where software
+# CAN reach it. Two directions, and they are not symmetric:
+#
+#   projector -> music : automatic. AirPlay/Spotify Connect grabs the WiiM.
+#   music -> projector : needs a nudge. VIDAA never re-initiates a Bluetooth
+#                        connection; it falls back to the projector's own speakers.
+#
+# Selecting the WiiM's Bluetooth input makes the WiiM re-initiate the link, and
+# the projector accepts it — verified by hand. That is the exact gesture the
+# Marshall's switch used to perform as a side effect of entering BT mode.
+# These commands are that gesture, minus walking across the room.
+#
+# See docs/decisions/living-room-audio.md for the full reasoning.
+
+# The WiiM/LinkPlay local HTTP API. Documented by WiiM:
+# https://www.wiimhome.com/pdf/HTTP%20API%20for%20WiiM%20Products.pdf
+#
+# verify_ssl: false is REQUIRED — the device serves this over HTTPS with a
+# self-signed cert (its mDNS record advertises `security=https`).
+#
+# The IP is hardcoded ON PURPOSE, and it must stay an IP:
+#   * The WiiM is on Wi-Fi (its getStatusEx reports apcli0=192.168.45.159,
+#     eth0=0.0.0.0), so a DHCP lease rotation breaks this silently. The address
+#     is reserved for MAC 40:D9:5A:2F:34:EC in the router — keep it that way.
+#   * Do NOT substitute `wiim-Living-Room.local`. That name also resolves via the
+#     ISP's DNS wildcard to a PUBLIC address (218.38.137.27), so a resolver that
+#     misses mDNS would send these commands to the open internet.
+rest_command:
+  wiim_input_bluetooth:
+    url: "https://192.168.45.159/httpapi.asp?command=setPlayerCmd:switchmode:bluetooth"
+    method: get
+    verify_ssl: false
+    timeout: 10
+
+  # The escape hatch, not the normal path. Starting AirPlay or Spotify/Tidal
+  # Connect already pulls the WiiM back to its network input on its own; this is
+  # for when the projector is holding the input and nothing is playing to take it.
+  wiim_input_wifi:
+    url: "https://192.168.45.159/httpapi.asp?command=setPlayerCmd:switchmode:wifi"
+    method: get
+    verify_ssl: false
+    timeout: 10
+
+# Exposed as scripts rather than called directly so they get a friendly name on a
+# dashboard button and can be surfaced through the HomeKit bridge for Siri
+# ("Hey Siri, projector audio") without the voice surface knowing about REST.
+script:
+  projector_audio:
+    alias: Projector Audio
+    icon: mdi:projector
+    sequence:
+      - action: rest_command.wiim_input_bluetooth
+
+  music_audio:
+    alias: Music Audio
+    icon: mdi:music
+    sequence:
+      - action: rest_command.wiim_input_wifi
