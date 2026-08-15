@@ -24,7 +24,28 @@
 # notification bell. Scan it in the Home app. The pairing is stored in the ha_data
 # volume (`.storage/homekit.*`), NOT here — it is onboarding state, per the split
 # in SPEC.md §HA config: the volume/git split.
+# WHY THERE ARE TWO BRIDGES
+# -------------------------
+# Apple requires a **home hub** (HomePod, HomePod mini, or Apple TV) to invite
+# another person to a Home. There is no hub here, and iPad is no longer supported
+# as one — Apple removed that. So the second person cannot be invited to the first
+# person's Home.
+#
+# A second bridge instance sidesteps it entirely: HA supports multiple HomeKit
+# bridges on different ports, each paired INDEPENDENTLY to a different Apple Home.
+# Each person pairs their own. No hub, no invitation, no purchase.
+#
+# What this gives up, and why it does not matter here:
+#   * Two separate Homes with no shared state — irrelevant, the automation lives
+#     in HA, not in HomeKit.
+#   * No away-from-home HomeKit — irrelevant, Tailscale already provides remote
+#     HA access. Local Siri does not need a hub.
+#
+# ADDING A THIRD: give it a unique port and a unique name. Both are part of the
+# bridge's identity — changing either AFTER pairing forces a re-pair, so pick
+# names now rather than tidying them later.
 homekit:
+  # ---- Han's Home ----
   - name: Homelab
     # Explicit rather than default so the bound port is documented and greppable.
     # Host networking means this binds on EVERY host interface, including the home
@@ -47,6 +68,22 @@ homekit:
     # Allowlist, never a broad filter. Everything exposed to HomeKit becomes visible
     # to every device signed into the home, so exposure is a per-entity decision —
     # the same "opt-in, never default" posture SPEC.md takes for public routes.
+    filter:
+      include_entities:
+        - script.projector_audio
+        - script.music_audio
+
+  # ---- Partner's Home ----
+  # Same entities, separate bridge, separate pairing code. Deliberately identical
+  # in what it exposes: this is not a permissions boundary, it is a workaround for
+  # Apple's hub requirement. If the two households ever need DIFFERENT entity sets,
+  # that is a real decision to make then, not a default to assume now.
+  #
+  # `port` and `name` are the only things that may differ from the bridge above,
+  # and both must be unique across instances or HA will refuse to start the second.
+  - name: Homelab Partner
+    port: 21064
+    advertise_ip: 192.168.45.71
     filter:
       include_entities:
         - script.projector_audio
