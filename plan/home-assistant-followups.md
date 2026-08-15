@@ -22,6 +22,14 @@ instead. This keeps each service on an independent image/upgrade cycle and fits 
 
 ### 1. Music Assistant
 
+> **Deferred 2026-08-16** — see [`docs/decisions/living-room-audio.md`](../docs/decisions/living-room-audio.md).
+> The WiiM Mini already *is* the music hub for streaming (AirPlay 2, Spotify/Tidal Connect),
+> and gerbera already serves a local library over DLNA that the WiiM Home app can browse.
+> MA earns a service slot on an 8 GB box only if DLNA browsing proves too clunky, or if
+> multi-room across several WiiM endpoints appears. Its Apple Music provider is **not** a
+> clean escape hatch: it needs Widevine CDM binaries and is "not officially supported by
+> Apple" per MA's own docs.
+
 Its own compose service, not an HA add-on (we run HA Core, so there is no add-on
 store). Integrates with HA over the Music Assistant integration. Primary sources
 will be local library + streaming; primary sink will be the WiiM Mini on the living

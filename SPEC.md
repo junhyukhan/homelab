@@ -155,7 +155,7 @@ Six services. That's the whole homelab.
 |----------------|------------------------------------------------|---------------------|-------------------|-------------------|
 | cloudflared    | `cloudflare/cloudflared:latest`                | `homelab_net`       | none              | n/a (is the tunnel) |
 | registry       | `registry:2`                                   | published `${TAILSCALE_IP}:30500:5000` | `registry_data` vol | Tailscale-private |
-| home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol    | LAN + Tailscale (intentional), never public |
+| home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol + git-tracked `./ha/packages` (ro) | LAN + Tailscale (intentional), never public |
 | duri           | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`, published `127.0.0.1:3000`; HTTPS via `tailscale serve` | none (stateless; data in Supabase cloud) | Tailscale-private |
 | gerbera        | `gerbera/gerbera:3.2.1`                        | **`network_mode: host`** (SSDP multicast) | `gerbera_data` vol; media read-only | LAN + Tailscale (intentional), never public |
 | gluetun        | `qmcgaw/gluetun:v3.41.3`                       | `homelab_net`, published `127.0.0.1:9091`; **owns the torrent netns** | none | Tailscale-private |
@@ -176,7 +176,9 @@ cold-start ordering.
 
 **home-assistant** — `network_mode: host` (required for mDNS/SSDP device
 discovery, same reason it was `hostNetwork: true` under k3s). Volume
-`ha_data:/config`, `TZ=${TZ}`. Because it's on host networking it is **not** on
+`ha_data:/config`, `TZ=${TZ}`, plus a **read-only bind of `./ha/packages`** at
+`/config/packages` (git-tracked declarative config, merged via HA's `packages:`
+feature — see §HA config: the volume/git split). Because it's on host networking it is **not** on
 `homelab_net` and cannot resolve other services by compose DNS — this is expected
 and accepted; HA doesn't pull from the registry or call other homelab services. A
 future service that needs to talk *to* HA reaches it at `<tailscale-ip>:8123`.
@@ -370,6 +372,35 @@ unreliable and varies by renderer. Media with *embedded* subtitle tracks is the
 path that works. If external subtitles turn out to matter, that is the trigger to
 reconsider a Google TV dongle + Jellyfin, not to add a transcoding server here.
 
+### HA config: the volume/git split
+
+Home Assistant gets config from **two places, and the boundary is deliberate**:
+
+| Location | Holds | Written by |
+|---|---|---|
+| `ha_data` volume (`/config`) | **Onboarding state** — integrations, credentials, device/entity registry, recorder DB | HA itself, via the browser |
+| `./ha/packages` → `/config/packages` (**ro**, git) | **Declarative config** — things a decision put in place | A human, in this repo |
+
+The rule: *if its silent disappearance would go unnoticed, it belongs in git.* A
+credential HA obtained through an OAuth flow is state and belongs in the volume. A
+`rest_command` carrying a hardcoded device IP is a decision, and burying it in a Docker
+volume means a volume restore would delete it with nothing to say so.
+
+This is the same pattern as gerbera's `config.xml` — a file HA does not rewrite can be
+the source of truth in git, unlike transmission's `settings.json`, which is rewritten on
+shutdown and therefore needs the asserter-script pattern instead.
+
+Mechanically it needs **one line** in the volume's `configuration.yaml`, which is
+onboarding-side and therefore not in git:
+
+```yaml
+homeassistant:
+  packages: !include_dir_named packages
+```
+
+First occupant is `ha/packages/wiim.yaml` (living-room audio input switching). See
+[`docs/decisions/living-room-audio.md`](docs/decisions/living-room-audio.md).
+
 ### Anticipated future services (not built now)
 
 Home Assistant's voice/media follow-ups (see `plan/home-assistant-followups.md`):
@@ -548,6 +579,21 @@ All **LOCKED** — do not re-open without asking.
   admin UI. Gerbera shares the torrent stack's **volume, never its network**: media
   goes to the living room over the LAN, not through Windscribe.
   See [`docs/decisions/dlna-media.md`](docs/decisions/dlna-media.md).
+- **Declarative HA config is git-tracked and bind-mounted; onboarding state stays in the
+  volume** (added 2026-08-16). HA config was previously all volume-resident, which is right
+  for onboarding but wrong for config a decision put in place — it would vanish on a volume
+  restore with nothing to notice. `./ha/packages` is now mounted read-only at
+  `/config/packages` and merged via HA's `packages:` feature. Same pattern as gerbera's
+  `config.xml`; the split is specified in §HA config: the volume/git split.
+- **The living-room speaker is driven through the WiiM, not switched at the amp**
+  (added 2026-08-16). The Marshall Acton III is a dumb amp with a *physical* input selector
+  no software can reach, so the projector's Bluetooth was re-pointed at the WiiM Mini and
+  the Marshall locked on AUX permanently. The WiiM has exactly **one active input**, so
+  music and projector audio can never both be live — a structural ceiling, not a setting.
+  The one remaining gesture (music → projector) is driven by the WiiM's **local HTTP API**
+  via a `rest_command`, chosen over HACS integrations because it needs no third-party code
+  in HA. Full-automation (Rung 2, VIDAA MQTT) is deferred on sequencing, not merit.
+  See [`docs/decisions/living-room-audio.md`](docs/decisions/living-room-audio.md).
 
 ---
 

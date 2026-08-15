@@ -75,6 +75,21 @@ services:
       TZ: ${TZ}
     volumes:
       - ha_data:/config
+      # Git-tracked HA config, mounted READ-ONLY, merged in via HA's `packages:`
+      # feature. Same pattern as gerbera's config.xml: a file HA does not rewrite
+      # can be the source of truth in git, unlike transmission's settings.json.
+      #
+      # The split is deliberate and is the line SPEC draws for HA state:
+      #   ha_data volume  -> ONBOARDING state. Integrations, credentials, device
+      #                      registry, the recorder DB. Written by HA, via the UI.
+      #   ./ha/packages   -> DECLARATIVE config. Things a decision put in place,
+      #                      whose silent disappearance nothing else would notice.
+      #
+      # Requires a one-time line in the volume's configuration.yaml:
+      #   homeassistant:
+      #     packages: !include_dir_named packages
+      # See docs/decisions/living-room-audio.md.
+      - ./ha/packages:/config/packages:ro
 
   # duri — the human's couples-finance app (Next.js). Runs as a stateless
   # artifact per SPEC Pattern A: built on a dev machine, pushed to the registry,
