@@ -248,5 +248,33 @@ background. Its role is an HA dashboard, and Apple Home via the HomeKit bridge.
 - Why there are **two** WiiM `media_player` entities (`wiim_living_room`,
   `wiim_living_room_2`) — two integrations appear to have claimed one device. Harmless today,
   confusing later.
-- Whether to expose the scripts through the HomeKit bridge (Siri) — wanted, not yet built.
 - Rung 2, if one tap turns out to be one too many.
+
+### Addendum (2026-08-16) — the control surface
+
+> **Verbatim (2026-08-16):** "yes dashboard button and the HomeKit bridge."
+
+**HomeKit bridge — built**, in `ha/packages/homekit.yaml`, with a per-entity allowlist
+holding exactly the two audio scripts. HA maps a `script.*` to a HomeKit switch that
+turns itself back off, so the Siri phrase is *"turn on projector audio"*. Pairing is a
+one-time human step and its state lives in `ha_data`, not git — it is onboarding state,
+which is the split working as designed.
+
+`advertise_ip` turned out to be **required rather than optional**: the box runs four
+docker bridge interfaces alongside `wlp1s0` and `tailscale0`, and HA's mDNS advertisement
+under host networking regularly lands on a docker address, failing pairing with no useful
+error. It also surfaced that **the box is on Wi-Fi**, so it needs a DHCP reservation for
+the same reason the WiiM does. Two hardcoded addresses now depend on router reservations;
+both fail silently if a lease rotates.
+
+**Dashboard button — deliberately NOT built in git.** The obvious move was a YAML
+dashboard in `ha/packages/`, matching the "declarative config in git" choice above. It
+was rejected on the split's own logic: **a dashboard layout is onboarding state, not a
+decision.** It is visual, iterated often, and the UI editor is genuinely the better tool
+for it — putting it in YAML would trade a good editor for reproducibility nobody needs
+on a button's position. The line drawn earlier says `ha_data` holds what HA's UI writes;
+a dashboard is exactly that.
+
+This is worth recording because it is the first time the volume/git split was used to
+argue *against* git-tracking something, which is the test of whether the line is real or
+just a preference for version control.
