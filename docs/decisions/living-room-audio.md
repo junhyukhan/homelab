@@ -278,3 +278,45 @@ a dashboard is exactly that.
 This is worth recording because it is the first time the volume/git split was used to
 argue *against* git-tracking something, which is the test of whether the line is real or
 just a preference for version control.
+
+### Addendum (2026-08-16) — two bridges, because there is no Apple hub
+
+Pairing succeeded and Siri works. Two findings followed immediately:
+
+> **Verbatim (2026-08-16):** "paired it, siri works. but i had to use the notification bell
+> instead of the settings menu. now the qr code isn't visible. how do i get it back"
+
+The pairing card is displayed **until pairing succeeds and then never again** — that is
+Apple/HA behaviour, not a fault. The reset lever is the `homekit.unpair` action, which
+removes *all* pairings for that bridge. The bell rather than Settings is a consequence of
+configuring HomeKit in **YAML**: HA's docs say UI-created instances are managed in the UI,
+so a YAML instance gets a thinner panel. Guidance pointing at Settings was wrong for this
+setup and is corrected in SPEC.
+
+> **Verbatim (2026-08-16):** "ah okay. but apparently i need a hub to add people?"
+
+Correct, and it is an Apple constraint: inviting a second person to a Home requires a
+**home hub** — HomePod, HomePod mini, or Apple TV. **iPad is no longer supported as a
+hub**, which also closes the door on the "use the iPad as a hub" idea from the opening ask.
+
+Three options were put: (A) a second bridge instance, (B) the partner simply uses the HA
+app, which already works, (C) buy a HomePod mini.
+
+> **Verbatim (2026-08-16):** "A. add the second bridge"
+
+**A** — HA supports multiple bridges on distinct ports, each paired independently to a
+*different* Apple Home. So the hub requirement is sidestepped rather than satisfied: each
+person pairs their own Home. Free, and no hardware.
+
+The two costs are real but empty here. Two Homes with no shared state does not matter
+because **the automation lives in HA, not in HomeKit** — the bridges are a control surface,
+not a logic layer. No away-from-home HomeKit does not matter because Tailscale already
+carries remote HA access, and local Siri needs no hub.
+
+Deliberately **not** made a permissions boundary: both bridges expose identical entities.
+The second bridge exists to work around a hub requirement, not to restrict anyone. If the
+two households ever want different entity sets, that is a decision to take then.
+
+**C remains the only path to a genuine hub** (real Home sharing, remote HomeKit, HomeKit
+automations, plus another AirPlay 2 endpoint) and is recorded as the escape hatch rather
+than rediscovered later.

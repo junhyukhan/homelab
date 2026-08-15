@@ -427,6 +427,24 @@ Exposure is **per entity, opt-in** — the same posture as public routes. Anythi
 allowlist is visible to every device signed into the home. Pairing state lives in
 `ha_data` (`.storage/homekit.*`), not in git: it is onboarding state.
 
+**Two bridge instances, one per person — because there is no Apple home hub.** Apple
+requires a hub (HomePod, HomePod mini, or Apple TV) to invite a second person to a Home,
+and **iPad is no longer supported as one**. Rather than buy a hub, each person pairs their
+own Apple Home to their own bridge: `Homelab` on `:21063` and `Homelab Partner` on
+`:21064`, exposing identical entities. What that gives up — two Homes with no shared
+state, and no away-from-home HomeKit — costs nothing here, because the automation lives
+in HA rather than HomeKit and Tailscale already provides remote HA access. Local Siri
+needs no hub.
+
+`port` and `name` are both part of a bridge's **identity**: changing either after pairing
+forces a re-pair, so a third instance picks its name up front rather than being tidied
+later. Both must be unique or HA refuses to start the second instance.
+
+**Re-pairing:** the pairing card is shown until pairing succeeds and then never again —
+find it under the **notification bell**, not Settings (a YAML-configured instance gets a
+thinner UI panel than a UI-created one). To force a new code, run the `homekit.unpair`
+action; it removes **all** pairings for that bridge, so everyone on it re-pairs.
+
 ### Anticipated future services (not built now)
 
 Home Assistant's voice/media follow-ups (see `plan/home-assistant-followups.md`):
