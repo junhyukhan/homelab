@@ -370,7 +370,18 @@ half-written files in 콘텐츠 공유 as broken, unplayable entries.
 **Known limitation: subtitles.** DLNA's handling of external `.srt` files is
 unreliable and varies by renderer. Media with *embedded* subtitle tracks is the
 path that works. If external subtitles turn out to matter, that is the trigger to
-reconsider a Google TV dongle + Jellyfin, not to add a transcoding server here.
+reconsider a set-top box + a real client (Jellyfin/Infuse/Plex), not to add a
+transcoding server here.
+
+> **Update 2026-08-16.** The likely form of that escape hatch is now an **Apple TV**
+> rather than a Google TV dongle — the household is deeply Apple, and an Apple TV
+> would separately serve as the missing HomeKit home hub and as an AirPlay 2 source
+> into the WiiM. Not purchased; evaluated in
+> [`docs/decisions/living-room-audio.md`](docs/decisions/living-room-audio.md).
+> **Note what it would do to this design:** the client that forced DLNA (a closed
+> VIDAA with no Jellyfin client) would stop being the client, making gerbera partly
+> redundant. That reopens [`docs/decisions/dlna-media.md`](docs/decisions/dlna-media.md)
+> and should be decided deliberately, not drifted into.
 
 ### HA config: the volume/git split
 

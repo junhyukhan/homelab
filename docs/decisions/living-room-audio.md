@@ -320,3 +320,61 @@ two households ever want different entity sets, that is a decision to take then.
 **C remains the only path to a genuine hub** (real Home sharing, remote HomeKit, HomeKit
 automations, plus another AirPlay 2 endpoint) and is recorded as the escape hatch rather
 than rediscovered later.
+
+### Addendum (2026-08-16) — music hub settled, and the Apple TV case
+
+> **Verbatim (2026-08-16):** "im fine using spotify for now."
+
+**The music hub is closed with no build.** Spotify Connect satisfies the requirement
+directly: the WiiM pulls the stream from the internet itself, so the phone is only a
+remote and can go do anything else. The one thing that must be got right is *mechanism* —
+pick the WiiM from the **device picker inside the Spotify app**, never from the AirPlay
+menu, because AirPlay keeps the phone as the source and is exactly the tethering the
+requirement rejects. (Free-tier Connect is per-manufacturer, so if the WiiM never appears
+in the picker, that is the reason.)
+
+**Music Assistant is therefore formally closed, not merely deferred**, along with the
+Apple Music / Widevine path and the gerbera-as-music-library option. They return only if
+multi-room across several WiiM endpoints appears, or if the streaming service changes.
+
+> **Verbatim (2026-08-16):** "also, if i were to get an apple tv, would my issues be solved?"
+
+> **Verbatim (2026-08-16):** "Yep. I was thinking of the apple tv cause of other reasons.
+> These strengthen the case for buying. Im already deeply entrenched in the apple ecosystem."
+
+**Status: evaluated, leaning buy, NOT purchased.** Recorded so the analysis is not redone
+later. An Apple TV solves three distinct problems here, and the middle one is the reason
+this belongs in *this* record rather than a shopping list:
+
+1. **Home hub.** Real Home sharing, so the second bridge above becomes redundant (harmless
+   to leave). Also unlocks remote HomeKit and HomeKit-side automations.
+2. **It would largely dissolve the switching problem this whole record is about.** The WiiM
+   is an AirPlay 2 receiver, and tvOS 26 allows *any* third-party AirPlay 2 speaker as
+   default audio output. So Apple TV audio would arrive on the WiiM's **network** input —
+   the same input Spotify Connect uses. Switching from music to a film becomes one network
+   stream replacing another: **no Bluetooth, no input switch, no script, no Siri command.**
+3. **It is the escape hatch SPEC already names for gerbera's subtitle limitation.** SPEC
+   says the trigger is "reconsider a Google TV dongle + Jellyfin"; Apple TV is the
+   Apple-ecosystem form of that, with Infuse/Jellyfin/Plex clients available.
+
+**What it would not solve, and the caveats — recorded so the purchase is not oversold:**
+
+- **VIDAA-native playback still goes over Bluetooth.** Anything played from the projector's
+  own apps or 콘텐츠 공유 still needs the input switch. Only content routed *through* the
+  Apple TV benefits, so Rung 1 narrows in scope rather than disappearing.
+- **Lip sync is a known, specific issue on Apple TV → WiiM.** Fixable with the WiiM Home
+  app's audio-delay setting, but expect to tune it: the Mini is calibrated assuming a
+  0 ms-latency speaker per Apple's HomePod guidance, and the Marshall is a powered speaker
+  with latency of its own.
+- **System alerts and game sounds still play through the projector's speakers** when a
+  non-HomePod AirPlay speaker is the default output. Only media audio reaches the WiiM.
+- **The Marshall stays on AUX permanently regardless.** That does not change, ever.
+
+**The architectural consequence to walk in aware of:** if the Apple TV becomes the primary
+media source, the gerbera/DLNA design becomes partly redundant — the client that forced
+DLNA (a closed VIDAA with no Jellyfin client) would no longer be the client. That is not a
+hidden cost, but it is a re-opening of [`dlna-media.md`](dlna-media.md), and it should be
+made deliberately rather than drifted into.
+
+The purchase is being driven by reasons outside this record ("other reasons", Apple
+ecosystem lock-in); the analysis here strengthens it rather than justifying it alone.
