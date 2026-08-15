@@ -1,0 +1,53 @@
+# HomeKit bridge — expose selected HA entities to the Apple Home app and Siri.
+#
+# WHY THIS EXISTS
+# ---------------
+# The household is almost entirely Apple. The HomeKit bridge is what lets everyone
+# use HA without learning HA: the entities below show up in the Home app on every
+# iPhone/iPad/Watch already in the house, and Siri can drive them by name.
+#
+# First occupant is the living-room audio pair. Saying "Hey Siri, turn on projector
+# audio" is the whole point of Rung 1 — it replaces walking to the amp and flipping
+# a physical switch. See docs/decisions/living-room-audio.md.
+#
+# HOW SCRIPTS APPEAR
+# ------------------
+# HA maps a `script.*` entity to a HomeKit **switch** that turns itself back off
+# once the script finishes. So the Siri phrasing is "turn on <name>", not "<name>".
+# Rename the accessory in the Home app if a different phrase feels better — the
+# Home app name is what Siri matches, not the HA entity name.
+#
+# PAIRING (one-time, human step)
+# ------------------------------
+# After this loads, HA raises a persistent notification containing the pairing QR
+# code / setup code: Settings -> Devices & Services -> HomeKit Bridge, or the
+# notification bell. Scan it in the Home app. The pairing is stored in the ha_data
+# volume (`.storage/homekit.*`), NOT here — it is onboarding state, per the split
+# in SPEC.md §HA config: the volume/git split.
+homekit:
+  - name: Homelab
+    # Explicit rather than default so the bound port is documented and greppable.
+    # Host networking means this binds on EVERY host interface, including the home
+    # LAN — the same forced consequence Home Assistant and gerbera already carry.
+    # That is fine and intended here: HomeKit is a LAN protocol and the iPhones
+    # doing the pairing are on the LAN, not the tailnet.
+    port: 21063
+
+    # REQUIRED HERE, not optional. The box carries four docker bridge interfaces
+    # (docker0 + three br-*) alongside wlp1s0 and tailscale0. HomeKit advertises
+    # itself over mDNS, and with host networking HA regularly picks a docker bridge
+    # address — pairing then fails with no useful error, because the iPhone tries to
+    # reach an address that does not exist on its network.
+    #
+    # This is the box's LAN address on wlp1s0. The box is on WI-FI with DHCP, so
+    # this needs a router reservation the same way the WiiM's does, or a lease
+    # rotation silently breaks HomeKit. Box MAC on wlp1s0 -> reserve 192.168.45.71.
+    advertise_ip: 192.168.45.71
+
+    # Allowlist, never a broad filter. Everything exposed to HomeKit becomes visible
+    # to every device signed into the home, so exposure is a per-entity decision —
+    # the same "opt-in, never default" posture SPEC.md takes for public routes.
+    filter:
+      include_entities:
+        - script.projector_audio
+        - script.music_audio

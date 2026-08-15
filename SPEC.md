@@ -398,8 +398,34 @@ homeassistant:
   packages: !include_dir_named packages
 ```
 
-First occupant is `ha/packages/wiim.yaml` (living-room audio input switching). See
-[`docs/decisions/living-room-audio.md`](docs/decisions/living-room-audio.md).
+Occupants:
+
+- `ha/packages/wiim.yaml` — living-room audio input switching.
+- `ha/packages/homekit.yaml` — the HomeKit bridge (below).
+
+See [`docs/decisions/living-room-audio.md`](docs/decisions/living-room-audio.md).
+
+### HomeKit bridge — the Apple-household control surface
+
+`homekit:` exposes an **allowlist** of entities to the Apple Home app and Siri, so the
+household uses HA without learning HA. Binds **port 21063**; host networking means that
+is on every interface including the home LAN, which is correct — HomeKit is a LAN
+protocol and the pairing iPhones are on the LAN, not the tailnet. Never public.
+
+Two things are load-bearing and both are DHCP-fragile:
+
+- **`advertise_ip` is required, not optional.** The box runs four docker bridge
+  interfaces alongside `wlp1s0` and `tailscale0`. HA advertises HomeKit over mDNS and
+  regularly picks a docker bridge address under host networking; pairing then fails with
+  no useful error, because the iPhone dials an address that does not exist on its network.
+- **Two router reservations are prerequisites**, not nice-to-haves — the box
+  (`192.168.45.71`, `wlp1s0`, and it is on **Wi-Fi**) because `advertise_ip` hardcodes it,
+  and the WiiM (`192.168.45.159`, MAC `40:D9:5A:2F:34:EC`) because the `rest_command` URL
+  does. A lease rotation on either breaks its feature *silently*.
+
+Exposure is **per entity, opt-in** — the same posture as public routes. Anything in the
+allowlist is visible to every device signed into the home. Pairing state lives in
+`ha_data` (`.storage/homekit.*`), not in git: it is onboarding state.
 
 ### Anticipated future services (not built now)
 
@@ -594,6 +620,14 @@ All **LOCKED** — do not re-open without asking.
   via a `rest_command`, chosen over HACS integrations because it needs no third-party code
   in HA. Full-automation (Rung 2, VIDAA MQTT) is deferred on sequencing, not merit.
   See [`docs/decisions/living-room-audio.md`](docs/decisions/living-room-audio.md).
+- **HomeKit bridge is the household control surface, with a per-entity allowlist**
+  (added 2026-08-16). The house is Apple; the bridge lets everyone drive HA from the Home
+  app and Siri without learning HA. Exposure is opt-in per entity — the same posture as
+  public routes — because anything bridged is visible to every device in the home.
+  `advertise_ip` is **required** here rather than optional: four docker bridges plus
+  `wlp1s0` and `tailscale0` mean HA's mDNS advertisement otherwise lands on a docker
+  address and pairing fails silently. Binds `:21063` on all interfaces (host networking),
+  which is right for a LAN protocol. See §HomeKit bridge.
 
 ---
 
