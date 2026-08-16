@@ -665,8 +665,38 @@ All **LOCKED** — do not re-open without asking.
 There's no API-server-style remote control. The primitive is manual GitOps:
 
 ```
-tailscale ssh into the box → git pull && docker compose up -d
+tailscale ssh into the box → ./scripts/deploy.sh
 ```
+
+> **`git pull && docker compose up -d` is NOT sufficient any more, and fails silently**
+> (corrected 2026-08-16). `docker compose up -d` only recreates a container when the
+> **compose definition** changes. Config that is *bind-mounted* from this repo —
+> `ha/packages`, `cloudflared/`, gerbera's `config.xml` — is invisible to it: compose
+> prints `Running`, the container keeps serving the old config, and nothing reports it.
+> Verified on the box: after pulling a changed `ha/packages/*.yaml`, `up -d` printed
+> `Running` and HA's uptime was unchanged.
+>
+> This is the same silent-ignore shape as `ports:` under host networking and `ports:`
+> under `network_mode: service:` — compose does not error, it just does nothing.
+> **`scripts/deploy.sh`** is the fix: it diffs what the pull changed, maps those paths
+> to services via **`scripts/bind-config.map`**, restarts exactly those, then runs
+> `verify.sh`. Adding a bind mount without adding a map row is caught by `verify.sh`,
+> so the mapping cannot silently rot.
+
+### Verification — `scripts/verify.sh`
+
+Asserts the box actually matches what the repo declares, and exits non-zero if not.
+`deploy.sh` runs it automatically; run it standalone any time, from the box or the Mac
+(it re-execs itself over SSH). It covers repo sync and tree cleanliness, every compose
+service, bind-mount map coverage, the **out-of-compose** state that nothing else guards
+(`tailscale serve` mounts, HA's `packages:` include, which lives in the `ha_data` volume
+and would vanish on a restore), loopback-only bindings for duri and transmission, and
+transmission's netns containment.
+
+**Known-down services are a warning with a stated reason, never a failure** — see
+`EXPECTED_DOWN` in the script. A check that always fails gets ignored, and an ignored
+check is worse than no check. `cloudflared` is currently the only entry: the tunnel has
+never been created, so it crash-loops. The entry is deleted when the reason stops being true.
 
 The desired state — **including each own-image's version, pinned inline in
 `compose.yaml` as a git SHA** (never `:latest`) — lives in git, so `git blame`
