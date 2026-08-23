@@ -59,8 +59,14 @@ Intentionally manual, run *on the box* over Tailscale SSH — there is no remote
 ```bash
 ssh jun@100.65.77.63
 cd ~/homelab
-git pull && docker compose up -d
+./scripts/deploy.sh
 ```
+
+**Do NOT use `git pull && docker compose up -d`.** It silently skips bind-mounted
+config (`ha/packages`, `cloudflared/`, gerbera's `config.xml`) — compose only recreates
+on *definition* changes, so it prints `Running` and does nothing. `deploy.sh` restarts
+whatever the pull actually changed, then runs `scripts/verify.sh`. Run `verify.sh`
+standalone any time (from the box or the Mac) to assert the box matches the repo.
 
 `duri` is the one build-on-dev app: build → push → pin → reconcile → verify via
 `./scripts/deploy-duri.sh` from the Mac (roll back with `--tag <old-sha>`). Its app
