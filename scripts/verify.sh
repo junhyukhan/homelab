@@ -81,7 +81,11 @@ fi
 # Derived from compose, not hardcoded, so a new service is covered automatically.
 say "Services"
 running="$(docker compose ps --services --status running 2>/dev/null)"
-for svc in $(docker compose config --services 2>/dev/null); do
+# `--profile '*'` enumerates PROFILE-GATED services too. Plain `config --services`
+# honours the active profiles, so cloudflared would not be listed at all and would
+# be skipped in silence — defeating EXPECTED_DOWN, whose entire purpose is that a
+# known-down service stays VISIBLE with a stated reason.
+for svc in $(docker compose --profile '*' config --services 2>/dev/null); do
   if grep -qx "$svc" <<<"$running"; then
     ok "$svc running"
   elif grep -qw "$svc" <<<"$EXPECTED_DOWN"; then
