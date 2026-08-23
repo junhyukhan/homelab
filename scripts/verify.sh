@@ -50,10 +50,13 @@ bad()  { printf '  \033[31m✗\033[0m %s\n' "$*"; FAILED=$((FAILED + 1)); }
 # Each entry must carry a reason, and the entry is DELETED the moment that reason
 # stops being true:
 #
-#   cloudflared — the tunnel has never been created. cloudflared/config.yml still
-#     holds <TUNNEL_NAME_OR_ID> placeholders, which is the documented state in
-#     SPEC.md §Access planes ("no real routes"). It therefore crash-loops roughly
-#     every 60s. Runbook to finish it: docs/tunnel-setup.md.
+#   cloudflared — gated behind the `tunnel` compose profile, so it is not started
+#     by `docker compose up -d` at all. The tunnel has never been created
+#     (config.yml still holds <TUNNEL_NAME_OR_ID> placeholders) and nothing is
+#     public yet, so there is nothing for it to route. It previously crash-looped
+#     ~every 60s; the profile stops that. Depending on the compose version it may
+#     not even appear in the service list — either way this entry keeps it visible.
+#     Delete this entry when the tunnel is built: docs/tunnel-setup.md.
 EXPECTED_DOWN="cloudflared"
 
 # ── 1. Repo state ────────────────────────────────────────────────────────────

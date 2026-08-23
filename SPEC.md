@@ -145,6 +145,18 @@ on this plane **only if a cloudflared ingress rule exists for it.**
 At migration time the ingress list has **no real routes** — only a commented
 example and the `http_status:404` catch-all. Nothing currently needs a public door.
 
+**So cloudflared does not run** (added 2026-08-16). It is gated behind the `tunnel`
+compose profile and excluded from `docker compose up -d`. The tunnel was never created,
+so cloudflared could not find an origin cert and exited; with `restart: unless-stopped`
+that was a **crash loop running ~every 60s for 43 hours**, unnoticed until
+`scripts/verify.sh` was written. A profile is the honest encoding of the posture this
+section already states — public exposure is opt-in and never speculative, so the tunnel
+is opt-in too, rather than always-on-and-failing. Standing it up now would mean a real
+Cloudflare credential to manage for a tunnel routing nothing. The trigger to build it is
+the **planned duri public door**, whose real blocker is app-side onboarding work in duri.
+Runbook: [`docs/tunnel-setup.md`](docs/tunnel-setup.md) — which also says to remove the
+`profiles:` key, and the `verify.sh` exemption, once it works.
+
 ---
 
 ## Services
@@ -153,7 +165,7 @@ Six services. That's the whole homelab.
 
 | Service        | Image                                          | Networking          | State             | Plane             |
 |----------------|------------------------------------------------|---------------------|-------------------|-------------------|
-| cloudflared    | `cloudflare/cloudflared:latest`                | `homelab_net`       | none              | n/a (is the tunnel) |
+| cloudflared    | `cloudflare/cloudflared:latest`                | `homelab_net`; **`profiles: [tunnel]`** — not started by default | none | n/a (is the tunnel) |
 | registry       | `registry:2`                                   | published `${TAILSCALE_IP}:30500:5000` | `registry_data` vol | Tailscale-private |
 | home-assistant | `ghcr.io/home-assistant/home-assistant:stable` | `network_mode: host` | `ha_data` vol + git-tracked `./ha/packages` (ro) | LAN + Tailscale (intentional), never public |
 | duri           | `${REGISTRY_HOST}/duri:<tag>`                  | `homelab_net`, published `127.0.0.1:3000`; HTTPS via `tailscale serve` | none (stateless; data in Supabase cloud) | Tailscale-private |

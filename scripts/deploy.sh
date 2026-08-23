@@ -88,6 +88,14 @@ else
     [[ -z "${prefix:-}" || "$prefix" == \#* ]] && continue
     if grep -q "^${prefix}" <<<"$changed"; then
       hits="$(grep "^${prefix}" <<<"$changed" | tr '\n' ' ')"
+      # A service may be legitimately absent — gated behind a compose profile
+      # (cloudflared) or deliberately stopped. `docker compose restart` on one of
+      # those FAILS, and with `set -e` that would abort the whole deploy over a
+      # service nobody expected to be running. Skip loudly instead.
+      if ! docker compose ps --services --status running 2>/dev/null | grep -qx "$service"; then
+        note "$service is not running (profile-gated or stopped) — skipped, config changed: $hits"
+        continue
+      fi
       if [[ $DRY_RUN == 1 ]]; then
         note "[dry-run] would restart $service  (changed: $hits)"
       else

@@ -1,7 +1,8 @@
 # Homelab stack. See SPEC.md for what each service is and why.
 #
 # Deploy loop (from the box, over Tailscale SSH):
-#   git pull && docker compose up -d
+#   ./scripts/deploy.sh
+# NOT `git pull && docker compose up -d` — that silently skips bind-mounted config.
 #
 # Secrets/config not in git:
 #   .env                        — copy from .env.example, fill in
@@ -22,10 +23,27 @@ include:
 services:
   # The tunnel. Egress-only; opens no inbound ports. Locally-managed —
   # routes live in ./cloudflared/config.yml (git-tracked), creds JSON is
-  # human-supplied and gitignored. At migration time config.yml has no real
-  # ingress routes (everything is Tailscale-private). See SPEC.md §Access planes.
+  # human-supplied and gitignored. See SPEC.md §Access planes.
+  #
+  # GATED BEHIND THE `tunnel` PROFILE — it does not start with `docker compose up -d`.
+  #
+  # The tunnel has never been created: config.yml still holds <TUNNEL_NAME_OR_ID>
+  # placeholders, so cloudflared cannot find an origin cert and exits. With
+  # `restart: unless-stopped` that is a crash loop, and it ran ~every 60s for 43
+  # hours before scripts/verify.sh surfaced it (2026-08-16) — burning CPU on a
+  # thermally-constrained box with nobody watching.
+  #
+  # A profile is the honest expression of the situation: nothing is public yet, and
+  # SPEC is explicit that public exposure is opt-in and never speculative. So the
+  # tunnel is opt-in too, rather than always-on-and-failing.
+  #
+  # To bring it up once the tunnel actually exists (docs/tunnel-setup.md):
+  #   docker compose --profile tunnel up -d
+  # Then DELETE this profiles: key so it is always-on again, and drop cloudflared
+  # from EXPECTED_DOWN in scripts/verify.sh.
   cloudflared:
     image: cloudflare/cloudflared:latest
+    profiles: [tunnel]
     restart: unless-stopped
     command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
     volumes:
