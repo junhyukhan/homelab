@@ -69,10 +69,19 @@ tunnel runs with just the 404 catch-all. When you later expose a service
 
 ## 6. Start it
 
+`cloudflared` is gated behind the **`tunnel` compose profile**, so a plain
+`docker compose up -d` (or `./scripts/deploy.sh`) will NOT start it — that is
+deliberate, so an unconfigured tunnel cannot crash-loop unnoticed:
+
 ```bash
-docker compose up -d cloudflared
+docker compose --profile tunnel up -d
 docker compose logs -f cloudflared     # expect "Registered tunnel connection"
 ```
+
+Once it genuinely works, **remove the `profiles:` key** from the `cloudflared`
+service in `compose.yaml` so it is always-on like every other service, and delete
+`cloudflared` from `EXPECTED_DOWN` in `scripts/verify.sh`. Leaving either in place
+means a broken tunnel would look expected.
 
 ## Re-pointing DNS from the old tunnel
 
