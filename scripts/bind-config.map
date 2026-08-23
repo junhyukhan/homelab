@@ -1,0 +1,26 @@
+# bind-config.map — git-tracked config paths that are BIND-MOUNTED into a service,
+# and the service that must be RESTARTED when they change.
+#
+# WHY THIS FILE EXISTS
+# --------------------
+# `docker compose up -d` only recreates a container when the COMPOSE DEFINITION
+# changes. A bind-mounted file changing is invisible to it: compose prints
+# "Running" and moves on, the container keeps its old config, and nothing says so.
+#
+# Verified on the box 2026-08-16: after `git pull` brought a new
+# ha/packages/*.yaml, `docker compose up -d home-assistant` reported "Running"
+# and HA's uptime was unchanged — the new config was NOT loaded.
+#
+# That is the same silent-failure shape SPEC.md already warns about three times
+# (`ports:` under host networking, `ports:` under `network_mode: service:`, and
+# the missing-bind-path trap). This file plus scripts/deploy.sh is the fix.
+#
+# FORMAT: <repo-relative path prefix> <compose service>
+# Whitespace-separated. Lines starting with # and blank lines ignored.
+#
+# ADDING A BIND MOUNT? Add a row here. scripts/verify.sh FAILS if compose declares
+# a `./` bind with no row, so this cannot silently fall out of date.
+
+cloudflared/              cloudflared
+ha/packages/              home-assistant
+media/gerbera/            gerbera

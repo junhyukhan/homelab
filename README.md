@@ -64,7 +64,7 @@ Then, from the box over Tailscale SSH:
 ```bash
 ssh jun@100.65.77.63
 cd ~/homelab
-git pull && docker compose up -d
+./scripts/deploy.sh
 ```
 
 ## Day-to-day
@@ -92,9 +92,22 @@ as a runtime 503 that a human finds by tapping a button. Adding a key to the
 example is how you add it to the deploy. The container only picks up a changed env
 on recreate (`docker compose up -d --force-recreate duri`), which the deploy does.
 
-The deploy loop is intentionally manual: **SSH in, `git pull`, `docker compose
-up -d`.** There's no remote control plane. Optionally you can drive it from the Mac
-without exposing the daemon:
+The deploy loop is intentionally manual: **SSH in, run `./scripts/deploy.sh`.**
+There's no remote control plane.
+
+**Do not fall back to `git pull && docker compose up -d`** — it silently skips
+bind-mounted config (`ha/packages`, `cloudflared/`, gerbera's `config.xml`), because
+compose only recreates on *definition* changes. It prints `Running` and does nothing.
+`deploy.sh` restarts whatever the pull actually changed, then verifies. See
+[SPEC.md §Deploy](SPEC.md).
+
+Check the box matches the repo at any time — works from the box or the Mac:
+
+```bash
+./scripts/verify.sh
+```
+
+Optionally you can drive the daemon from the Mac without exposing it:
 
 ```bash
 docker context create homelab --docker "host=ssh://jun@100.65.77.63"
