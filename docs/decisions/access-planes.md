@@ -1,3 +1,14 @@
+---
+type: Decision
+title: Access planes — which service is reachable how
+description: >-
+  duri is served over HTTPS by `tailscale serve` with the plain-HTTP door closed, and Home
+  Assistant is deliberately on both LAN and tailnet. Reconstructed from commits, not from Han.
+status: stable
+tags: [homelab, access, tailscale, https, home-assistant, spec]
+generated: { by: human:junhyukhan, at: 2026-07-30T00:00:00Z }
+---
+
 # Access planes — which service is reachable how
 
 **Status:** DECIDED · record written 2026-07-30, reconstructed from artifacts
@@ -79,8 +90,9 @@ to notice `:8123` on the LAN stops instead of hardening it.
 
 ## Related
 
-- [`repos/knowledge/homelab-box.md`](../../../knowledge/homelab-box.md),
-  [`repos/knowledge/tailnet.md`](../../../knowledge/tailnet.md) — the cross-repo facts layer, which
-  cites this plane rather than restating it
+- [`SPEC.md`](../../SPEC.md) § Access planes — this repo owns the plane facts outright. The
+  meta-repo's `knowledge/` bundle used to mirror them; it was **retired 2026-08-30** precisely
+  because it restated what this record already says
+  ([`repos/docs/decisions/okf-bundle-retirement.md`](../../../docs/decisions/okf-bundle-retirement.md))
 - [`repos/docs/decisions/decision-capture.md`](../../../docs/decisions/decision-capture.md) — why
   this record exists here rather than in the meta-repo

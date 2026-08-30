@@ -1,9 +1,10 @@
 ---
 type: Decision
 title: <Topic>
-description: <One sentence stating what was decided. This is the record's machine API — the
-  generated decisions index shows this line and nothing else, so it must be enough for an agent
-  to recognise that this record applies. "Storage layer chosen" is useless; "SQLite persistence
+description: >-
+  <One sentence stating what was decided. This is the record's machine API — the generated
+  decisions index shows this line and nothing else, so it must be enough for an agent to
+  recognise that this record applies. "Storage layer chosen" is useless; "SQLite persistence
   retired 2026-07-30, seen.json replaced it" is the bar.>
 status: draft
 tags: []

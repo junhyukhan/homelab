@@ -1,3 +1,14 @@
+---
+type: Decision
+title: App env as a contract, pushed and gated
+description: >-
+  `duri.env.example` is a machine-read contract: its key NAMES drive `scripts/push-duri-env.sh`
+  and gate `scripts/deploy-duri.sh`, so adding a key there is how you add it to the deploy.
+status: stable
+tags: [homelab, env, secrets, deploy, duri, contract]
+generated: { by: human:junhyukhan, at: 2026-08-08T00:00:00Z }
+---
+
 # App env as a contract, pushed and gated
 
 **Status:** done (2026-08-08)

@@ -1,3 +1,14 @@
+---
+type: Decision
+title: Serving downloads to the projector (DLNA / gerbera)
+description: >-
+  The projector runs VidaaOS, not Google TV, which killed Jellyfin and forced DLNA via gerbera on
+  `network_mode: host` — so the access plane is LAN-only. Playback test still pending.
+status: draft
+tags: [homelab, dlna, gerbera, media, projector, docker]
+generated: { by: human:junhyukhan, at: 2026-08-15T00:00:00Z }
+---
+
 # Serving downloads to the projector (DLNA / gerbera)
 
 **Status:** in progress (2026-08-15) — built, pending first deploy and a playback test

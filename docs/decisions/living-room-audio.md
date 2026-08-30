@@ -1,3 +1,14 @@
+---
+type: Decision
+title: Living-room audio — one speaker, two sources, one physical switch
+description: >-
+  The Marshall stays locked on AUX with the WiiM Mini as the single hub — phones over AirPlay,
+  projector over the one BT slot; one active input is a structural ceiling.
+status: draft
+tags: [homelab, audio, wiim, home-assistant, airplay, bluetooth, spotify]
+generated: { by: human:junhyukhan, at: 2026-08-16T00:00:00Z }
+---
+
 # Living-room audio — one speaker, two sources, one physical switch
 
 **Status:** in progress (2026-08-16) — the routing fix is live and verified by hand;

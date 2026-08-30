@@ -1,3 +1,14 @@
+---
+type: Decision
+title: Transmission behind Windscribe (gluetun)
+description: >-
+  Transmission runs inside gluetun's network namespace, a hard containment guarantee rather than
+  a killswitch: VPN down means no route at all. The on-box leak check is still pending.
+status: draft
+tags: [homelab, vpn, gluetun, transmission, windscribe, docker, networking]
+generated: { by: human:junhyukhan, at: 2026-08-14T00:00:00Z }
+---
+
 # Transmission behind Windscribe (gluetun)
 
 **Status:** in progress (2026-08-14) — built, not yet deployed. Awaiting the manual
