@@ -6,7 +6,7 @@ description: >-
   projector over the one BT slot; one active input is a structural ceiling.
 status: draft
 tags: [homelab, audio, wiim, home-assistant, airplay, bluetooth, spotify]
-generated: { by: human:junhyukhan, at: 2026-08-16T00:00:00Z }
+generated: { by: claude/opus-5, at: 2026-08-16T00:00:00Z }
 ---
 
 # Living-room audio — one speaker, two sources, one physical switch

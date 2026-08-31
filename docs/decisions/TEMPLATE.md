@@ -8,7 +8,7 @@ description: >-
   retired 2026-07-30, seen.json replaced it" is the bar.>
 status: draft
 tags: []
-generated: { by: human:junhyukhan, at: <YYYY-MM-DDTHH:MM:SSZ> }
+generated: { by: <claude/opus-5 | human:junhyukhan>, at: <YYYY-MM-DDTHH:MM:SSZ> }
 ---
 
 # <Topic>

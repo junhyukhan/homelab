@@ -6,7 +6,7 @@ description: >-
   Assistant is deliberately on both LAN and tailnet. Reconstructed from commits, not from Han.
 status: stable
 tags: [homelab, access, tailscale, https, home-assistant, spec]
-generated: { by: human:junhyukhan, at: 2026-07-30T00:00:00Z }
+generated: { by: claude/opus-5, at: 2026-07-30T00:00:00Z }
 ---
 
 # Access planes — which service is reachable how

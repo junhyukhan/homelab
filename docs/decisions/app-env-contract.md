@@ -6,7 +6,7 @@ description: >-
   and gate `scripts/deploy-duri.sh`, so adding a key there is how you add it to the deploy.
 status: stable
 tags: [homelab, env, secrets, deploy, duri, contract]
-generated: { by: human:junhyukhan, at: 2026-08-08T00:00:00Z }
+generated: { by: claude/opus-5, at: 2026-08-08T00:00:00Z }
 ---
 
 # App env as a contract, pushed and gated

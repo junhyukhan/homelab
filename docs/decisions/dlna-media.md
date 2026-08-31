@@ -6,7 +6,7 @@ description: >-
   `network_mode: host` — so the access plane is LAN-only. Playback test still pending.
 status: draft
 tags: [homelab, dlna, gerbera, media, projector, docker]
-generated: { by: human:junhyukhan, at: 2026-08-15T00:00:00Z }
+generated: { by: claude/opus-5, at: 2026-08-15T00:00:00Z }
 ---
 
 # Serving downloads to the projector (DLNA / gerbera)
