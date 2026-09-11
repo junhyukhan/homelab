@@ -89,7 +89,14 @@ if [[ $SKIP_BUILD == 0 ]]; then
   # NEXT_PUBLIC_* (public, inlined into the client bundle) — extracted file-to-file
   # from the prod env into a temp, never printed. Server secrets are NOT baked.
   ARGFILE="$(mktemp)"; trap 'rm -f "$ARGFILE"' EXIT
-  grep -E '^NEXT_PUBLIC_SUPABASE_(URL|ANON_KEY)=' "$DURI_DIR/.env.hosted" > "$ARGFILE"
+  # From the tracked, non-secret .env.public — NOT from a secret file. These two
+  # are inlined into the client bundle at build time, so they are public by
+  # construction. Reading them from the old secret file was what made that file
+  # undeletable, since `set -e` aborts the deploy the moment it is gone.
+  PUBLIC_ENV="$DURI_DIR/.env.public"
+  [[ -f "$PUBLIC_ENV" ]] || die "missing $PUBLIC_ENV — the build needs the NEXT_PUBLIC_* values"
+  grep -E '^NEXT_PUBLIC_SUPABASE_(URL|ANON_KEY)=' "$PUBLIC_ENV" > "$ARGFILE"
+  [[ "$(grep -c . "$ARGFILE")" -eq 2 ]] || die "expected 2 NEXT_PUBLIC_* values in $PUBLIC_ENV"
   # shellcheck disable=SC1090
   set -a; . "$ARGFILE"; set +a
   say "Cross-building amd64 (the box can't run arm64)…"
