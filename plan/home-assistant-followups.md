@@ -59,7 +59,35 @@ consequence documented for HA in SPEC.md.
 Decision pending: whether to run Whisper on CPU (slow, simple) or pick a host with
 a GPU (adds complexity). Fine to start CPU-only — the box has no GPU.
 
-### 3. ~~Bind HA only to Tailscale~~ — decided against
+### 3. Bind HA only to Tailscale — **REOPENED and REVERSED 2026-09-12**
+
+> **Verbatim (Han, 2026-09-12):** "overturning the decision. HA only on tailscale"
+
+The 2026-07-15 decision below (`5bfd573`, "HA is intentionally LAN + Tailscale, not
+Tailscale-only") is **overturned**. HA moves to the tailnet only.
+
+**What changed is the premise, not the reasoning.** That decision rested on
+housemates using HA on the LAN. Asked directly on 2026-09-12 whether HA is reached
+over the LAN or Tailscale, Han answered "only over tailscale" — so the LAN access
+the record was protecting is no longer wanted.
+
+**Why it mattered enough to stop and ask:** a 2026-09-12 security review flagged
+`:8123` on all interfaces, and the record below exists precisely to stop that being
+"mistaken for an oversight and hardened away". It did its job — the change was put
+to Han instead of made. That is the record working, not the record being wrong.
+
+**Two ways to implement, and the firewall is safer:**
+- `http: server_host:` in `/config/configuration.yaml` binds HA to one interface.
+  It is a config edit inside the `ha_data` volume, and a malformed one stops HA
+  from starting at all.
+- A host firewall rule leaves HA untouched and is trivially reversible. Prefer it.
+
+**Also update `SPEC.md`'s access-plane table** — it carries the old rule in
+normative form ("Do **not** scope it to the tailnet").
+
+<details><summary>The superseded 2026-07-15 decision, kept for the reasoning</summary>
+
+
 
 HA is reachable on **every** host interface because of `network_mode: host`, which
 means it's on both the home LAN and the tailnet. This is **intended**: housemates
@@ -72,6 +100,8 @@ item is kept only as a signpost so the LAN exposure isn't mistaken for an oversi
 and "hardened" away. See the plane assignment in SPEC.md. (`trusted_proxies` /
 `use_x_forwarded_for` would only matter if an ingress were ever put in front — see
 #7 — which isn't planned.)
+
+</details>
 
 ### 4. Image version pinning
 
