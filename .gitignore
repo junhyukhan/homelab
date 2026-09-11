@@ -5,6 +5,17 @@
 # Ship only the *.env.example templates.
 duri.env
 
+# ...and the timestamped backups push-duri-env.sh leaves beside it. These hold
+# the SAME plaintext secrets as duri.env, and `duri.env` alone does not match
+# them — so before 2026-09-12 they sat UNTRACKED BUT NOT IGNORED in a PUBLIC
+# repo's working tree on the box, one `git add -A` away from being published.
+# Found by the 2026-09-12 secrets review; two such files were live at the time.
+duri.env.bak.*
+
+# Security review reports describe this box's network posture (SSH, Samba,
+# firewall state). This repo is public — keep them out of it.
+plan/secrets-review-*.md
+
 # Torrent stack secrets: WireGuard key material and the transmission RPC
 # password. Matches *.env, so the *.env.example templates are still tracked.
 torrent/*.env

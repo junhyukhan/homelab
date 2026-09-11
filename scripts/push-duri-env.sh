@@ -123,6 +123,14 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 say "Backing up the box's current duri.env → duri.env.bak.$STAMP"
 ssh_box "cd $BOX_HOMELAB_DIR && [ -f duri.env ] && cp -p duri.env duri.env.bak.$STAMP || true"
 
+# Keep only the most recent few. Each backup is a full plaintext copy of every
+# secret, so an unbounded pile is an unbounded exposure that also grows stale —
+# the oldest held a key that had already been rotated. `ls -t` newest-first,
+# skip the first $KEEP_BACKUPS, delete the rest. Best-effort: a failure here
+# must not fail a push that already succeeded.
+KEEP_BACKUPS="${KEEP_BACKUPS:-3}"
+ssh_box "cd $BOX_HOMELAB_DIR && ls -t duri.env.bak.* 2>/dev/null | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f" || true
+
 say "Pushing ${#KEYS[@]} key(s) to $BOX_HOST:$BOX_HOMELAB_DIR/duri.env"
 scp -q -o BatchMode=yes -i "$BOX_SSH_KEY" "$STAGE" "$BOX_HOST:$BOX_HOMELAB_DIR/duri.env"
 ssh_box "chmod 600 $BOX_HOMELAB_DIR/duri.env"
