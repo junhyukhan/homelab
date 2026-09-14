@@ -1,95 +1,73 @@
-# Box hardening — open, needs root at the machine
+# Box hardening — EXECUTED 2026-09-14
 
 From the 2026-09-12 security review (report: `plan/secrets-review-2026-09-12.md`, gitignored —
 this repo is public). Finding **H2**: the box's "reachable only over Tailscale" premise was false.
 
-**Nothing here has been run.** These need root, and an agent session cannot `sudo`
-non-interactively — so they are Han's to execute, ideally with a second SSH session held open.
+**Status: done.** Han ran every step on 2026-09-14. What is now true is recorded in
+[`SPEC.md`](../SPEC.md) §"Host firewall" — **that is the source of truth; this file is history.**
 
-## What was measured, 2026-09-12
+## What was done
 
-Verified directly, not inferred:
+| Step | State |
+|---|---|
+| 1. SSH password auth off | ✅ `passwordauthentication no`; key-only login verified |
+| 2. Samba off (`smbd`/`nmbd` disabled) | ✅ `:445`/`:139` gone — closes the `duri.env`-over-the-LAN hole |
+| 3. `ufw` default-deny + tailnet/LAN rules | ✅ HA `:8123` blocked from LAN, open over tailnet |
+| 4. Reconcile `SPEC.md` | ✅ §"Host firewall" added, with measured evidence |
+| Gerbera | ✅ **kept** — see correction 1. Stray `gerbtest` container removed |
 
-- `sshd` listens on `0.0.0.0:22` and `[::]:22`, and **offers password auth** — a probe with
-  `PubkeyAuthentication=no` returned `Permission denied (publickey,password)`.
-  `docs/bootstrap.md:49-51` already recommends `PasswordAuthentication no`; it was never applied.
-- **Samba active** on `0.0.0.0:139` / `0.0.0.0:445` (+ IPv6), exporting `[homes]`. Since `jun` is in
-  the `docker` group (root-equivalent), that share would serve `~/homelab/duri.env` to anyone on
-  the LAN holding that password.
-- **Home Assistant on `0.0.0.0:8123`**, plus `:21063`/`:21064`, and Gerbera on the LAN IP.
-- **No host firewall**: `ufw`, `nftables`, `firewalld` all inactive.
-- Correctly Tailscale-bound already: `:443`, `:8443`, `:30500`, `:41616`. Loopback-bound: `:9091`,
-  `:18554`. So the pattern exists — it was applied to the services `SPEC.md` knows about.
+Measured from a LAN host (192.168.45.40) afterwards: `:8123` blocked from LAN / 200 over
+tailnet · `:445`,`:139` closed · `:22` blocked from LAN, open over tailnet · `:49494` open.
 
-## Decisions taken 2026-09-12/14
+## Three corrections to this document's own earlier claims
 
-- **Samba: OFF entirely.** Han: the box is no longer used for Time Machine backups, so disabling
-  beats firewalling.
-- **Home Assistant: Tailscale-only.** This **overturns** the 2026-07-15 decision — see
-  `plan/home-assistant-followups.md` §3 and the amended `SPEC.md` row.
-- **Gerbera: undecided.** Han thinks it serves torrented media. DLNA clients (a TV, say) cannot use
-  Tailscale, so a default-deny firewall will cut them off. Identify the consumer before deciding.
+Recorded because each one cost real time or real breakage, and the pattern is the same in all
+three: **a claim about the box was trusted over the document that owns the facts about the box.**
 
-## The steps, in this order
+### 1. "Samba and Gerbera are in neither the service table nor the access-plane table" — FALSE of Gerbera
 
-Order is deliberate: least-likely-to-lock-you-out first, and the firewall last because a wrong
-rule on a headless box means physical access.
+Gerbera is in **both** (`SPEC.md` §Services, §"Locked plane assignments") with an explicit
+rationale: it serves the living-room projector (Hisense M2 Pro, VIDAA OS), which cannot join
+the tailnet, and `network_mode: host` is *required* because SSDP discovery is multicast. Acting
+on this sentence would have taken out the projector's media. The claim was true of Samba only.
 
-### 1. SSH password auth off
+**Compounding it:** the supporting evidence gathered at the time was void. `journalctl -u gerbera`
+returned nothing and was read as "no clients in 30 days" — but Gerbera is a **container**, not a
+systemd unit, so that command could never have returned anything regardless of the truth. An empty
+result was treated as evidence of absence when it was only evidence of the wrong instrument.
 
-Hold a second SSH session open before running this.
+### 2. The HomeKit ports were flagged as a finding that SPEC had already decided
 
-```bash
-sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sudo sshd -t && sudo systemctl reload ssh      # -t validates BEFORE reload
-```
+H2 listed `:21063`/`:21064` on `0.0.0.0` as part of the problem. `SPEC.md` §"HomeKit bridge" says
+of exactly that binding: *"host networking means that is on every interface including the home
+LAN, **which is correct** — HomeKit is a LAN protocol and the pairing iPhones are on the LAN, not
+the tailnet."* The ports, the two-bridge design and the reason were all written down first.
 
-Verify from the Mac — should report `(publickey)` only:
+Consequence: the initial firewall step had no LAN rules, and would have silently broken the
+household's Apple Home control surface. The rules now in `SPEC.md` §"Host firewall" exist because
+that section was finally read.
 
-```bash
-ssh -o BatchMode=yes -o PubkeyAuthentication=no jun@100.65.77.63 true
-```
+### 3. "SSH first because key auth is already proven" — it was not, and it locked Han out
 
-### 2. Samba off
+The review had measured that sshd **offered** password auth. It never tested that a **key-only**
+login from the Mac succeeds. Those are different claims, and step 1 depended on the second.
 
-```bash
-sudo systemctl disable --now smbd nmbd
-ss -tln | grep -E ':445|:139'    # expect no output
-```
+Root cause, once diagnosed: the Mac's key has a non-default filename
+(`id_ed25519__jun_hp_spectre__homeserver`), so `ssh` offered it only while it happened to be
+loaded in `ssh-agent`. The agent had forgotten it. `authorized_keys` on the box had been correct
+since October. Fixed on the Mac with an `IdentityFile` entry in `~/.ssh/config`, which does not
+depend on agent state.
 
-### 3. Firewall — this is what scopes HA to the tailnet
-
-Chosen over `http: server_host:` in HA's `configuration.yaml` deliberately: a malformed config
-stops HA booting, a firewall rule is reversible.
-
-```bash
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow in on tailscale0
-sudo ufw allow in on lo
-sudo ufw allow 22/tcp            # keep SSH reachable while verifying
-sudo ufw enable
-```
-
-Then, once everything is confirmed reachable over Tailscale, tighten SSH:
-
-```bash
-sudo ufw delete allow 22/tcp
-```
-
-### 4. Afterwards
-
-Send `ss -tln | grep '0.0.0.0'` back to a session and reconcile **`SPEC.md`** with it. SPEC says
-*"Six services. That's the whole homelab."* (`SPEC.md:164`) and there are more — Samba and Gerbera
-are in neither the service table nor the access-plane table. Whatever survives step 3 should be
-documented; whatever does not should be removed from the box.
+**The rule this yields, which belongs in any future step that disables a fallback:**
+prove the primary path works *with the fallback explicitly disabled* — here,
+`ssh -o BatchMode=yes -o PasswordAuthentication=no` — **before** changing the server, not after.
 
 ## Still open from the same review
 
-- **M1 — Postgres TLS.** `grep -c 'sslmode=verify-full' ~/homelab/duri.env` returned **0**, so the
-  connection was not authenticated TLS. Partly fixed in duri-v3 branch `fix/db-tls` (adds
-  `ssl: "require"`, which encrypts but does **not** verify the server certificate). `verify-full`
-  needs Supabase's CA bundled into the homelab image — not done, not filed elsewhere.
+- **M1 — Postgres TLS.** Fixed in duri-v3 PR #53: `ssl: "require"`, with the hosted handshake
+  verified client-side (TLSv1.3). `verify-full` remains open and is **not** a setting to flip
+  later — the pooler presents `SELF_SIGNED_CERT_IN_CHAIN`, so without Supabase's CA bundled into
+  the image first it fails every connection. See `duri-v3/src/lib/db/index.ts`.
 - **H1 — write path.** An Infisical session on the Mac can *write* to `prod`, and with the Vercel
   syncs live a write now propagates to production. The *read* half is closed: the secret-guard hook
   now blocks the CLI's value-printing commands (`config`, 26 test cases). No permission rule denies

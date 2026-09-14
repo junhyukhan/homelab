@@ -159,6 +159,37 @@ Runbook: [`docs/tunnel-setup.md`](docs/tunnel-setup.md) — which also says to r
 
 ---
 
+### Host firewall — what actually enforces the planes (added 2026-09-14)
+
+Until 2026-09-14 the plane assignments above were enforced only by **how each service chose
+to bind**, and two of them bound everywhere. `ufw` now enforces them, and it is the reason
+the table below is true rather than intended:
+
+```
+default deny incoming · default allow outgoing
+allow in on tailscale0 · allow in on lo
+allow from 192.168.45.0/24 to any port 49494 proto tcp   # gerbera, see §Media serving
+allow from 192.168.45.0/24 to any port 1900  proto udp   # SSDP discovery
+allow from 192.168.45.0/24 to any port 21063 proto tcp   # HomeKit bridge "Homelab"
+allow from 192.168.45.0/24 to any port 21064 proto tcp   # HomeKit bridge "Homelab Partner"
+allow from 192.168.45.0/24 to any port 5353  proto udp   # mDNS — HomeKit advertisement
+```
+
+**The LAN rules are not leftovers to tidy up later.** Gerbera and the HomeKit bridges are
+LAN protocols serving devices that cannot join the tailnet (a VIDAA projector, pairing
+iPhones). Removing those rules does not harden anything — it breaks the feature. Both are
+documented as deliberate LAN exposure in §Media serving and §HomeKit bridge.
+
+SSH keeps no LAN rule: it is reachable over `tailscale0` only, and password auth is off.
+
+**Measured after the change, from a host on the LAN (192.168.45.40), 2026-09-14:**
+`:8123` blocked from LAN / 200 over tailnet · `:445`,`:139` gone · `:22` blocked from LAN,
+open over tailnet · `:49494` open from LAN. Re-measure with `nc -z <ip> <port>` from a
+non-tailnet device; the box's own `ss -tln` shows what *binds*, never what is *reachable*,
+and the two differ by exactly this firewall.
+
+---
+
 ## Services
 
 Six services. That's the whole homelab.
@@ -434,6 +465,12 @@ See [`docs/decisions/living-room-audio.md`](docs/decisions/living-room-audio.md)
 household uses HA without learning HA. Binds **port 21063**; host networking means that
 is on every interface including the home LAN, which is correct — HomeKit is a LAN
 protocol and the pairing iPhones are on the LAN, not the tailnet. Never public.
+
+**Since 2026-09-14 a third thing is load-bearing: the host firewall must allow 21063,
+21064 and 5353/udp in from the LAN.** Host networking binds them everywhere, so they look
+open in `ss` while `ufw` drops the traffic — pairing and control then fail with nothing in
+HA's log to explain it. Blocking mDNS (5353/udp) breaks advertisement even when the bridge
+ports themselves are reachable. See §Host firewall.
 
 Two things are load-bearing and both are DHCP-fragile:
 
