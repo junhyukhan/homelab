@@ -1,6 +1,8 @@
 ---
 workspace:
-  readfirst: SPEC.md
+  # docs/README.md routes into SPEC.md by section; SPEC.md stays the source of truth
+  # (7,761 words, past the 1,500-word readfirst budget). Since 2026-09-23.
+  readfirst: docs/README.md
   decisions: docs/decisions/
   backlog: [plan/duri-followups.md, plan/home-assistant-followups.md]
   # Deliberately null. `docker compose config -q` validates against duri.env,
@@ -23,9 +25,10 @@ volumes; all config is in this repo.
 
 ## Read first
 
+- **`docs/README.md`** — the read-first router: which `SPEC.md` section, runbook or record
+  answers which question. Its table states no facts of its own.
 - **`SPEC.md`** — the source of truth for *what* runs and *why* (goals, architecture,
   access planes, decisions). Read it before adding, removing, or changing any service.
-  This is homelab's "read-first" state layer (its equivalent of a `docs/README.md`).
 - **`README.md`** — the runbook: deploy loop, day-to-day commands, per-service addresses,
   bootstrap/recovery.
 - **`docs/decisions/`** — append-only decision logs: the **verbatim ask + Discussion** behind
@@ -40,9 +43,8 @@ code** — spec before config, never reverse-derive the spec from `compose.yaml`
 
 - **State & config:** all durable state lives in named Docker volumes; all config lives
   in this repo. Nothing important lives only on the box.
-- **Secrets:** live in `*.env` files (e.g. `.env`, `duri.env`) which are gitignored —
-  never read or print their values. To learn what keys a file holds, read the matching
-  `*.env.example`. When a secret must move, do it file-to-file (never echo/cat to console).
+- **Secrets:** live in gitignored `*.env` files (e.g. `.env`, `duri.env`); the global `.env`
+  rule governs reading and moving them.
   **`duri.env.example` is a machine-read contract, not a doc**: `scripts/push-duri-env.sh`
   ships exactly the keys it declares and `scripts/deploy-duri.sh` refuses to deploy when
   the box lacks one, so it must stay accurate — it declared a key duri reads nowhere until
