@@ -1,7 +1,7 @@
 # homelab — docs
 
-**Read this first.** This file is a router: it says where each answer lives and states no facts of
-its own, so it cannot drift from them. The facts live in [`../SPEC.md`](../SPEC.md), the source of
+**Read this first.** This file is a router: it says where each answer lives. Its table states no
+facts of its own; the lists below it are kept by hand, so check them against their folders. The facts live in [`../SPEC.md`](../SPEC.md), the source of
 truth. When something changes, `SPEC.md` updates first and code follows. Commands, deploy and
 repo rules are in [`../AGENTS.md`](../AGENTS.md).
 
@@ -12,7 +12,8 @@ repo rules are in [`../AGENTS.md`](../AGENTS.md).
 | What the homelab is for, and what it deliberately is not | `SPEC.md` §Goals, §Non-goals |
 | How the box is laid out; the registry's one canonical name | §Architecture |
 | Which service is reachable how, and what actually enforces it | §Access planes, §Host firewall |
-| One service: the torrent stack, media serving, Home Assistant, the HomeKit bridge | §Services and its subsections |
+| One service: duri, the registry and cloudflared (§Services' body), or the torrent stack, media serving, Home Assistant, the HomeKit bridge (its subsections) | §Services |
+| Day-to-day commands, the deploy loop, per-service addresses, bootstrap and recovery | [`../README.md`](../README.md), the runbook |
 | Services anticipated but not built | §Anticipated future services |
 | Limits the design must respect; the `.env` keys | §Constraints |
 | Why a choice was made | §Decisions (with rationale), then [`decisions/`](decisions/) |
