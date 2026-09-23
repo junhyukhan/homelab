@@ -43,9 +43,8 @@ code** — spec before config, never reverse-derive the spec from `compose.yaml`
 
 - **State & config:** all durable state lives in named Docker volumes; all config lives
   in this repo. Nothing important lives only on the box.
-- **Secrets:** live in `*.env` files (e.g. `.env`, `duri.env`) which are gitignored —
-  never read or print their values. To learn what keys a file holds, read the matching
-  `*.env.example`. When a secret must move, do it file-to-file (never echo/cat to console).
+- **Secrets:** live in gitignored `*.env` files (e.g. `.env`, `duri.env`); the global `.env`
+  rule governs reading and moving them.
   **`duri.env.example` is a machine-read contract, not a doc**: `scripts/push-duri-env.sh`
   ships exactly the keys it declares and `scripts/deploy-duri.sh` refuses to deploy when
   the box lacks one, so it must stay accurate — it declared a key duri reads nowhere until
