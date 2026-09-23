@@ -1,6 +1,8 @@
 ---
 workspace:
-  readfirst: SPEC.md
+  # docs/README.md routes into SPEC.md by section; SPEC.md stays the source of truth
+  # (7,761 words, past the 1,500-word readfirst budget). Since 2026-09-23.
+  readfirst: docs/README.md
   decisions: docs/decisions/
   backlog: [plan/duri-followups.md, plan/home-assistant-followups.md]
   # Deliberately null. `docker compose config -q` validates against duri.env,
