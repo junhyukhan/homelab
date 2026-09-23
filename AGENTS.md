@@ -26,7 +26,7 @@ volumes; all config is in this repo.
 ## Read first
 
 - **`docs/README.md`** — the read-first router: which `SPEC.md` section, runbook or record
-  answers which question. It states no facts of its own.
+  answers which question. Its table states no facts of its own.
 - **`SPEC.md`** — the source of truth for *what* runs and *why* (goals, architecture,
   access planes, decisions). Read it before adding, removing, or changing any service.
 - **`README.md`** — the runbook: deploy loop, day-to-day commands, per-service addresses,
