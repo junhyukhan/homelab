@@ -51,7 +51,7 @@ Both lines must read `len=44 charset_ok=yes ends_with_eq=yes`.
 ### 1.2 Fill in the two gitignored env files, on the box
 
 ```bash
-ssh jun@100.65.77.63
+ssh jhkn-homelab
 cd ~/homelab && git pull
 
 cp torrent/gluetun.env.example      torrent/gluetun.env

@@ -43,7 +43,7 @@ IP changed):
 
 ```bash
 ssh-keygen -R <TS_IP>                                    # drop any stale host key
-ssh-copy-id -i ~/.ssh/id_ed25519__jun_hp_spectre__homeserver jun@<TS_IP>
+ssh-copy-id -i ~/.ssh/<your key> jun@<TS_IP>
 ```
 
 Recommended after confirming key login works: disable SSH password auth

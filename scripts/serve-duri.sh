@@ -20,19 +20,15 @@
 #   scripts/serve-duri.sh              # assert serve on the box + verify HTTPS
 #   scripts/serve-duri.sh --dry-run    # print the plan, change nothing
 #
-# Env overrides: BOX_HOST, BOX_SSH_KEY, DURI_PORT, BOX_URL.
+# Env overrides: BOX_HOST, DURI_PORT, BOX_URL.
 set -euo pipefail
 
-BOX_HOST="${BOX_HOST:-jun@100.65.77.63}"
-BOX_SSH_KEY="${BOX_SSH_KEY:-$HOME/.ssh/id_ed25519__jun_hp_spectre__homeserver}"
+source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 DURI_PORT="${DURI_PORT:-3000}"
-BOX_URL="${BOX_URL:-https://jun-hp-spectre.tail114865.ts.net}"
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
 
-say() { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
-ssh_box() { ssh -o BatchMode=yes -o ConnectTimeout=10 -i "$BOX_SSH_KEY" "$BOX_HOST" "$@"; }
 
 # Proxy the node's HTTPS (443) root at the MagicDNS name to duri on loopback.
 # `--bg` persists the config across reboots (stored in tailscaled state).

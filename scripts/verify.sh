@@ -19,11 +19,11 @@
 #
 # Exit status is 0 only if every check passes — safe to chain or run from a cron.
 #
-# Env overrides: BOX_SSH_HOST, REPO_DIR.
+# Env overrides: BOX_HOST, BOX_HOMELAB_DIR (the checkout on the box, from elsewhere), REPO_DIR (on the box).
 set -uo pipefail
 
 BOX_HOSTNAME="jun-hp-spectre"
-BOX_SSH_HOST="${BOX_SSH_HOST:-jun-hp-spectre}"
+source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 REPO_DIR="${REPO_DIR:-$HOME/homelab}"
 
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
@@ -31,14 +31,13 @@ REPO_DIR="${REPO_DIR:-$HOME/homelab}"
 # Re-exec on the box if we're not already there. Everything below inspects docker,
 # listening sockets and tailscaled — all of which only mean anything on the box.
 if [[ "$(hostname -s 2>/dev/null)" != "$BOX_HOSTNAME" ]]; then
-  exec ssh -o BatchMode=yes -o ConnectTimeout=10 "$BOX_SSH_HOST" \
-    "cd '$REPO_DIR' && ./scripts/verify.sh"
+  exec ssh -o BatchMode=yes -o ConnectTimeout=10 "$BOX_HOST" \
+    "cd ${BOX_HOMELAB_DIR:-~/homelab} && ./scripts/verify.sh"
 fi
 
 cd "$REPO_DIR"
 
 FAILED=0
-say()  { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 warn() { printf '  \033[33m⚠\033[0m %s\n' "$*"; }
 bad()  { printf '  \033[31m✗\033[0m %s\n' "$*"; FAILED=$((FAILED + 1)); }

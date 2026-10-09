@@ -13,7 +13,7 @@
 #   scripts/deploy-duri.sh --dry-run      # print the plan, change nothing
 #   scripts/deploy-duri.sh --dirty-ok     # allow a dirty duri working tree (SHA gets a -dirty suffix)
 #
-# Env overrides: DURI_DIR, BOX_HOST, BOX_SSH_KEY, REGISTRY_HOST, BOX_URL.
+# Env overrides: DURI_DIR, BOX_HOST, REGISTRY_HOST, BOX_URL.
 set -euo pipefail
 
 # --- config (defaults match the current homelab) -----------------------------
@@ -21,9 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOMELAB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DURI_DIR="${DURI_DIR:-$(cd "$HOMELAB_DIR/../duri-v3" && pwd)}"
 REGISTRY_HOST="${REGISTRY_HOST:-100.65.77.63:30500}"
-BOX_HOST="${BOX_HOST:-jun@100.65.77.63}"
-BOX_SSH_KEY="${BOX_SSH_KEY:-$HOME/.ssh/id_ed25519__jun_hp_spectre__homeserver}"
-BOX_URL="${BOX_URL:-https://jun-hp-spectre.tail114865.ts.net}"   # HTTPS via tailscale serve; container is loopback-only
+source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 BOX_HOMELAB_DIR="${BOX_HOMELAB_DIR:-~/homelab}"
 
 TAG=""; DRY_RUN=0; DIRTY_OK=0; SKIP_BUILD=0
@@ -37,9 +35,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-say() { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 run() { if [[ $DRY_RUN == 1 ]]; then echo "  [dry-run] $*"; else eval "$*"; fi; }
-ssh_box() { ssh -o BatchMode=yes -o ConnectTimeout=10 -i "$BOX_SSH_KEY" "$BOX_HOST" "$@"; }
 
 # --- 1. resolve the tag from duri's git state --------------------------------
 if [[ -z "$TAG" ]]; then
@@ -124,7 +120,7 @@ fi
 
 # --- 4. reconcile the box (GitOps pull) --------------------------------------
 say "Reconciling the box (git pull && up -d duri)…"
-run "ssh -o BatchMode=yes -o ConnectTimeout=10 -i '$BOX_SSH_KEY' '$BOX_HOST' \
+run "ssh -o BatchMode=yes -o ConnectTimeout=10 '$BOX_HOST' \
   'cd $BOX_HOMELAB_DIR && git pull --ff-only && docker compose up -d duri'"
 
 # --- 5. verify the running commit --------------------------------------------

@@ -30,20 +30,16 @@
 #   scripts/serve-transmission.sh              # assert serve on the box + verify
 #   scripts/serve-transmission.sh --dry-run    # print the plan, change nothing
 #
-# Env overrides: BOX_HOST, BOX_SSH_KEY, TRANSMISSION_PORT, SERVE_PORT, BOX_URL.
+# Env overrides: BOX_HOST, TRANSMISSION_PORT, SERVE_PORT, BOX_URL.
 set -euo pipefail
 
-BOX_HOST="${BOX_HOST:-jun@100.65.77.63}"
-BOX_SSH_KEY="${BOX_SSH_KEY:-$HOME/.ssh/id_ed25519__jun_hp_spectre__homeserver}"
+source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 TRANSMISSION_PORT="${TRANSMISSION_PORT:-9091}"
 SERVE_PORT="${SERVE_PORT:-8443}"
-BOX_URL="${BOX_URL:-https://jun-hp-spectre.tail114865.ts.net}"
 DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
 
-say() { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
-ssh_box() { ssh -o BatchMode=yes -o ConnectTimeout=10 -i "$BOX_SSH_KEY" "$BOX_HOST" "$@"; }
 
 SERVE_CMD="tailscale serve --bg --https=${SERVE_PORT} http://127.0.0.1:${TRANSMISSION_PORT}"
 TARGET_URL="${BOX_URL}:${SERVE_PORT}"
