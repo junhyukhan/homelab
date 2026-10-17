@@ -59,7 +59,7 @@ code** — spec before config, never reverse-derive the spec from `compose.yaml`
 Intentionally manual, run *on the box* over Tailscale SSH — there is no remote control plane:
 
 ```bash
-ssh jun@100.65.77.63
+ssh jhkn-homelab
 cd ~/homelab
 ./scripts/deploy.sh
 ```

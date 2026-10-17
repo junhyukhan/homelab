@@ -37,11 +37,10 @@
 #   scripts/settings-transmission.sh              # assert, then show the result
 #   scripts/settings-transmission.sh --dry-run    # print the plan, change nothing
 #
-# Env overrides: BOX_HOST, BOX_SSH_KEY, PEER_PORT, UPLOAD_LIMIT_KBPS.
+# Env overrides: BOX_HOST, PEER_PORT, UPLOAD_LIMIT_KBPS.
 set -euo pipefail
 
-BOX_HOST="${BOX_HOST:-jun@100.65.77.63}"
-BOX_SSH_KEY="${BOX_SSH_KEY:-$HOME/.ssh/id_ed25519__jun_hp_spectre__homeserver}"
+source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 # Keep PEER_PORT in step with PEERPORT in torrent/compose.yaml.
 PEER_PORT="${PEER_PORT:-51413}"
 # Thermal ceiling, in kB/s. Lower it if the chassis runs hot under sustained
@@ -52,8 +51,6 @@ DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
 
-say() { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
-ssh_box() { ssh -o BatchMode=yes -o ConnectTimeout=10 -i "$BOX_SSH_KEY" "$BOX_HOST" "$@"; }
 
 # Runs inside the transmission container. $USER/$PASS come from
 # torrent/transmission.env via env_file; TR_AUTH + --authenv keep them off the

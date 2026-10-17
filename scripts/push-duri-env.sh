@@ -23,14 +23,13 @@
 #   scripts/push-duri-env.sh              # preflight, back up, push, verify
 #   scripts/push-duri-env.sh --dry-run    # report what WOULD be pushed (names only)
 #
-# Env overrides: DURI_DIR, BOX_HOST, BOX_SSH_KEY, BOX_HOMELAB_DIR.
+# Env overrides: DURI_DIR, BOX_HOST, BOX_HOMELAB_DIR.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOMELAB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DURI_DIR="${DURI_DIR:-$(cd "$HOMELAB_DIR/../duri-v3" && pwd)}"
-BOX_HOST="${BOX_HOST:-jun@100.65.77.63}"
-BOX_SSH_KEY="${BOX_SSH_KEY:-$HOME/.ssh/id_ed25519__jun_hp_spectre__homeserver}"
+source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 BOX_HOMELAB_DIR="${BOX_HOMELAB_DIR:-~/homelab}"
 
 CONTRACT="$HOMELAB_DIR/duri.env.example"
@@ -46,11 +45,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-say()  { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 bad()  { printf '  \033[31m✗\033[0m %s\n' "$*"; }
 die()  { printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
-ssh_box() { ssh -o BatchMode=yes -o ConnectTimeout=10 -i "$BOX_SSH_KEY" "$BOX_HOST" "$@"; }
 
 [[ -f "$CONTRACT" ]] || die "contract not found: $CONTRACT"
 command -v infisical >/dev/null || die "infisical CLI not found — brew install infisical/get-cli/infisical"
@@ -132,7 +129,7 @@ KEEP_BACKUPS="${KEEP_BACKUPS:-3}"
 ssh_box "cd $BOX_HOMELAB_DIR && ls -t duri.env.bak.* 2>/dev/null | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f" || true
 
 say "Pushing ${#KEYS[@]} key(s) to $BOX_HOST:$BOX_HOMELAB_DIR/duri.env"
-scp -q -o BatchMode=yes -i "$BOX_SSH_KEY" "$STAGE" "$BOX_HOST:$BOX_HOMELAB_DIR/duri.env"
+scp -q -o BatchMode=yes "$STAGE" "$BOX_HOST:$BOX_HOMELAB_DIR/duri.env"
 ssh_box "chmod 600 $BOX_HOMELAB_DIR/duri.env"
 
 # --- verify by NAME on the box ----------------------------------------------

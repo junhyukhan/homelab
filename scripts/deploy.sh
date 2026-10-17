@@ -28,6 +28,7 @@ set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-$HOME/homelab}"
 MAP_FILE="scripts/bind-config.map"
+source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 DRY_RUN=0
 RUN_VERIFY=1
 
@@ -40,13 +41,12 @@ for arg in "$@"; do
   esac
 done
 
-say()  { printf '\n\033[1;36m▶ %s\033[0m\n' "$*"; }
 note() { printf '  %s\n' "$*"; }
 
 # This pulls and restarts containers — it belongs on the box, not the Mac. Running
 # it on a dev machine would "succeed" against the wrong docker daemon and repo.
 if [[ ! -d "$REPO_DIR/.git" ]]; then
-  echo "✗ $REPO_DIR is not a git checkout — run this ON THE BOX (ssh jun-hp-spectre)" >&2
+  echo "✗ $REPO_DIR is not a git checkout — run this ON THE BOX (ssh jhkn-homelab)" >&2
   exit 1
 fi
 cd "$REPO_DIR"

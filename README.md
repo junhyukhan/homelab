@@ -62,7 +62,7 @@ Config not in git, set up once (see the runbooks below):
 Then, from the box over Tailscale SSH:
 
 ```bash
-ssh jun@100.65.77.63
+ssh jhkn-homelab
 cd ~/homelab
 ./scripts/deploy.sh
 ```

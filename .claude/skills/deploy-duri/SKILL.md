@@ -31,7 +31,7 @@ Preview first with `--dry-run` (changes nothing). Deploy an uncommitted tree wit
 ```bash
 curl -s http://100.65.77.63:3000/api/version         # {"version":"<sha>","builtAt":...}
 # or, without HTTP:
-ssh -i ~/.ssh/id_ed25519__jun_hp_spectre__homeserver jun@100.65.77.63 \
+ssh jhkn-homelab \
   'docker inspect --format "{{index .Config.Labels \"org.opencontainers.image.revision\"}}" homelab-duri-1'
 ```
 
@@ -41,9 +41,9 @@ ssh -i ~/.ssh/id_ed25519__jun_hp_spectre__homeserver jun@100.65.77.63 \
   secrets (`SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `ANTHROPIC_API_KEY`) are **not**
   baked — the box supplies them at runtime via `duri.env`.
 - **Never `:latest`.** The tag is always a git SHA, pinned in `compose.yaml`.
-- **SSH is over Tailscale** (`jun@100.65.77.63`), key `id_ed25519__jun_hp_spectre__homeserver`
-  — the `~/.ssh/config` alias points at a LAN IP that isn't reachable off-LAN.
-- Env overrides (`DURI_DIR`, `BOX_HOST`, `BOX_SSH_KEY`, `BOX_URL`) exist for a
+- **SSH is over Tailscale**, through the `jhkn-homelab` alias in `~/.ssh/config`. The alias owns
+  the user, address and key; `scripts/box.sh` names the alias and nothing else.
+- Env overrides (`DURI_DIR`, `BOX_HOST`, `BOX_URL`) exist for a
   different machine/box. Defaults match the current setup.
 - **Next rung (not built):** a self-hosted GitHub Actions runner on the box would
   turn merge-to-main into an auto-deploy — see `SPEC.md` §Deploy.
