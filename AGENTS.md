@@ -1,16 +1,10 @@
 ---
 workspace:
-  # docs/README.md routes into SPEC.md by section; SPEC.md stays the source of truth
-  # (7,761 words, past the 1,500-word readfirst budget). Since 2026-09-23.
+  # docs/README.md routes into SPEC.md by section; SPEC.md stays the source of truth.
   readfirst: docs/README.md
-  decisions: docs/decisions/
-  backlog: [plan/duri-followups.md, plan/home-assistant-followups.md]
   # Deliberately null. `docker compose config -q` validates against duri.env,
-  # which exists only on the box — it can never pass on a laptop. And it isn't
-  # needed: this repo's chore surface is docs-only (SPEC.md, docs/), and a docs
-  # change has no behavior to verify. The gate for a docs-only chore is the
-  # path restriction the supervisor enforces, not a command. compose.yaml is
-  # deploy-adjacent and stays manual regardless of what the class allows.
+  # which exists only on the box — it can never pass on a laptop. scripts/verify.sh
+  # checks the box, not a change. compose.yaml is deploy-adjacent and stays manual.
   verify: null
   autonomy: chore
 ---
@@ -18,6 +12,9 @@ workspace:
 # AGENTS.md — homelab
 
 Guidance for any coding agent working in this repository.
+
+`autonomy: chore` (frontmatter) means an agent may commit a docs-only chore here without asking;
+anything else, `compose.yaml` and deploys included, waits for Han.
 
 Single box (i7-7th-gen laptop, 8 GB RAM, Debian, headless, on Tailscale) that hosts
 long-running personal services with Docker Compose. All state is in named Docker
@@ -73,7 +70,9 @@ standalone any time (from the box or the Mac) to assert the box matches the repo
 `duri` is the one build-on-dev app: build → push → pin → reconcile → verify via
 `./scripts/deploy-duri.sh` from the Mac (roll back with `--tag <old-sha>`). Its app
 secrets are projected onto the box by `./scripts/push-duri-env.sh` — never hand-copied.
-(Claude Code: the `deploy-duri` skill wraps this.) duri is served over HTTPS via
+(Claude Code: the `deploy-duri` skill wraps this.) Nothing deploys duri automatically, so
+`./scripts/duri-drift.sh` says, from git alone, whether the pin trails duri's `main` by code
+that could change the image. duri is served over HTTPS via
 `tailscale serve` (`./scripts/serve-duri.sh`); the container binds loopback only —
 a secure context is required because duri is a PWA using Web Crypto.
 
