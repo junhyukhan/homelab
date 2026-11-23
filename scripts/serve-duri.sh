@@ -30,6 +30,8 @@ DRY_RUN=0
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
 
 
+require_target BOX_HOST BOX_URL || exit 2
+
 # Proxy the node's HTTPS (443) root at the MagicDNS name to duri on loopback.
 # `--bg` persists the config across reboots (stored in tailscaled state).
 SERVE_CMD="tailscale serve --bg http://127.0.0.1:${DURI_PORT}"

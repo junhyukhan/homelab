@@ -1,3 +1,9 @@
+# Private target maps and HA values belong outside the checkout. Also ignore
+# likely accidental local copies; only the example templates are public.
+targets.sh
+ha/secrets.yaml
+ha/local-values.yaml
+
 # Secrets — never commit
 .env
 

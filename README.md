@@ -2,18 +2,22 @@
 
 A single box that hosts long-running personal services, run with Docker Compose
 and reached over Tailscale by default. All state is in named Docker volumes; all
-config is in this repo. **[SPEC.md](SPEC.md) is the source of truth** for what runs
-and why — this README is the runbook.
+reusable config is in this repo; actual identifiers stay private/local.
+**[SPEC.md](SPEC.md) is the source of truth** for what runs and why.
+
+**Before adopting these source changes:** provision the required local targets,
+Compose values and HA references in [docs/local-targets.md](docs/local-targets.md).
+Do not deploy first and fill them later. No live migration is implied by this guide.
 
 ## Architecture
 
 ```
 Internet → Cloudflare Edge → cloudflared tunnel ─┐
                                                   ├─→ homelab_net → registry
-Tailnet devices → 100.65.77.63:30500 ────────────┤               → duri → Supabase cloud (egress)
-              ├─→ https://jun-hp-spectre.tail114865.ts.net ─(tailscale serve · TLS)→ 127.0.0.1:3000 → duri
-              ├─→ https://jun-hp-spectre.tail114865.ts.net:8443 ─(serve)→ 127.0.0.1:9091 → transmission
-              └─→ 100.65.77.63:8123 ─────────────────────────────→ home-assistant (host net)
+Tailnet devices → <tailnet-ip>:30500 ────────────┤               → duri → Supabase cloud (egress)
+              ├─→ https://<box-fqdn> ─(tailscale serve · TLS)→ 127.0.0.1:3000 → duri
+              ├─→ https://<box-fqdn>:8443 ─(serve)→ 127.0.0.1:9091 → transmission
+              └─→ <tailnet-ip>:8123 ─────────────────────────────→ home-assistant (host net)
 
   torrent stack:  gluetun ──WireGuard──→ Windscribe (Japan) ──→ BitTorrent swarm
                      └── transmission shares its namespace; no other route exists
@@ -29,14 +33,14 @@ Tailnet devices → 100.65.77.63:30500 ────────────┤  
 | Service        | Address / port         | State (volume)         | Plane             |
 |----------------|------------------------|------------------------|-------------------|
 | cloudflared    | — (the tunnel)         | none                   | n/a               |
-| registry       | `100.65.77.63:30500`   | `homelab_registry_data`| Tailscale-private (port bound to `${TAILSCALE_IP}`) |
-| home-assistant | `100.65.77.63:8123`    | `homelab_ha_data`      | LAN + Tailscale (intentional), never public |
-| duri           | `https://jun-hp-spectre.tail114865.ts.net` | none (data in Supabase cloud) | Tailscale-private, HTTPS via `tailscale serve` (container on loopback `127.0.0.1:3000`) |
+| registry       | `${REGISTRY_HOST}`   | `homelab_registry_data`| Tailscale-private (port bound to `${TAILSCALE_IP}`) |
+| home-assistant | `<tailnet-ip>:8123`    | `homelab_ha_data`      | LAN + Tailscale (intentional), never public |
+| duri           | `${BOX_URL}` | none (data in Supabase cloud) | Tailscale-private, HTTPS via `tailscale serve` (container on loopback `127.0.0.1:3000`) |
 | gerbera        | DLNA on the LAN (`:49494`, SSDP `:1900`) | `homelab_gerbera_data`; media read-only | LAN + Tailscale (intentional), never public |
 | gluetun        | — (owns the torrent netns) | none                   | Tailscale-private, never public |
-| transmission   | `https://jun-hp-spectre.tail114865.ts.net:8443` | `homelab_transmission_config` + `homelab_torrent_downloads` (binds `/srv/torrents`) | Tailscale-private via gluetun, never public |
+| transmission   | `${BOX_URL}:8443` | `homelab_transmission_config` + `homelab_torrent_downloads` (binds `/srv/torrents`) | Tailscale-private via gluetun, never public |
 
-`100.65.77.63:30500` (`${REGISTRY_HOST}`) is the one canonical registry address —
+`${REGISTRY_HOST}` is the one canonical registry address —
 there is no `registry.homelab` name. Home Assistant uses host networking for
 mDNS/SSDP discovery, so it's reached on the host IP directly, not via the bridge.
 
@@ -62,7 +66,7 @@ Config not in git, set up once (see the runbooks below):
 Then, from the box over Tailscale SSH:
 
 ```bash
-ssh jhkn-homelab
+ssh "$BOX_HOST"  # locally configured SSH alias
 cd ~/homelab
 ./scripts/deploy.sh
 ```
@@ -110,7 +114,7 @@ Check the box matches the repo at any time — works from the box or the Mac:
 Optionally you can drive the daemon from the Mac without exposing it:
 
 ```bash
-docker context create homelab --docker "host=ssh://jun@100.65.77.63"
+docker context create homelab --docker "host=ssh://${BOX_HOST:?Set your local SSH alias}"
 docker --context homelab compose up -d
 ```
 
@@ -123,7 +127,7 @@ docker --context homelab compose up -d
   from the Mac — one command does build → push → pin → reconcile → verify. Roll
   back with `--tag <old-sha>`. See SPEC.md §Deploy and the `deploy-duri` skill.
 - **duri HTTPS (secure context):** duri is served over HTTPS via `tailscale serve`
-  at `https://jun-hp-spectre.tail114865.ts.net` (needed for the PWA + Web Crypto).
+  at the locally configured `${BOX_URL}` (needed for the PWA + Web Crypto).
   `./scripts/serve-duri.sh` (re)asserts and verifies that config; the container
   itself binds loopback only. See SPEC.md §Decisions "On-box TLS via tailscale serve".
 - **Expose something publicly:** add a cloudflared ingress rule + DNS CNAME +

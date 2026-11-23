@@ -66,7 +66,7 @@ services:
       # Bound to the Tailscale IP only — NOT 0.0.0.0 — so the box's home-LAN
       # interface can't reach this unauthenticated HTTP registry. Needs
       # tailscale0 up before start; restart policy retries if it isn't.
-      - "${TAILSCALE_IP}:30500:5000"
+      - "${TAILSCALE_IP:?Set TAILSCALE_IP in local .env}:30500:5000"
     volumes:
       - registry_data:/var/lib/registry
     # /v2/ is the registry API root — a 200 means it can actually serve pulls,

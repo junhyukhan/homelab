@@ -8,10 +8,11 @@ Assumes: **Debian 13 (minimal / netinst, no desktop)** freshly installed, with a
 SSH server and a sudo user `jun`. Commands are apt-based; adjust for another distro.
 
 > **The Tailscale IP changes.** A reinstalled machine re-joins Tailscale as a new
-> node, so the old `100.65.77.63` almost certainly won't carry over. Everywhere
+> node, so the old address almost certainly won't carry over. Everywhere
 > below, `<TS_IP>` means *the new* `tailscale ip -4`. Thanks to the `${TAILSCALE_IP}`
 > env var, only three spots need the real value: `.env` (`TAILSCALE_IP`,
-> `REGISTRY_HOST`) and `/etc/docker/daemon.json`.
+> `REGISTRY_HOST`) and `/etc/docker/daemon.json`. Also supply `BOX_FQDN` and
+> script/HA local inputs as described in [local-targets.md](local-targets.md).
 
 ---
 

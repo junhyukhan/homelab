@@ -9,6 +9,7 @@ repo rules are in [`../AGENTS.md`](../AGENTS.md).
 
 | Looking for | Go to |
 |---|---|
+| Required private/local inputs and the pre-deploy migration gate | [`local-targets.md`](local-targets.md) |
 | What the homelab is for, and what it deliberately is not | `SPEC.md` §Goals, §Non-goals |
 | How the box is laid out; the registry's one canonical name | §Architecture |
 | Which service is reachable how, and what actually enforces it | §Access planes, §Host firewall |
@@ -28,24 +29,24 @@ repo rules are in [`../AGENTS.md`](../AGENTS.md).
 - [`torrent.md`](torrent.md): the torrent stack's first-run setup and leak check.
 - [`tunnel-setup.md`](tunnel-setup.md): create the locally-managed cloudflared tunnel.
 
-## Open work
+## Plans and summaries
 
-The manifest's declared backlog, in `../plan/`:
-
-- [`duri-followups.md`](../plan/duri-followups.md): the duri service after its first homelab deploy.
 - [`home-assistant-followups.md`](../plan/home-assistant-followups.md): Home Assistant follow-ups.
-
-Also in `plan/`: [`box-hardening.md`](../plan/box-hardening.md), executed 2026-09-14.
+- [`duri-followups.md`](../plan/duri-followups.md) and
+  [`box-hardening.md`](../plan/box-hardening.md): public summaries. Their original
+  machine-specific plans are retained privately; the summaries do not claim a new
+  live measurement or authorize pending work.
 
 ## Decisions
 
-One file per topic in [`decisions/`](decisions/), each a verbatim ask plus Discussion; copy
-`decisions/TEMPLATE.md` to start one.
+Historical records live in [`decisions/`](decisions/). Two personalized records
+now have public summaries, as marked below; their originals are retained privately.
+Use `decisions/TEMPLATE.md` for new decision records.
 
 - [`access-planes.md`](decisions/access-planes.md): which service is reachable how.
 - [`app-env-contract.md`](decisions/app-env-contract.md): app env as a contract, pushed and gated.
 - [`branch-reclamation.md`](decisions/branch-reclamation.md): three stale branches were
   squash-merge residue, not unreclaimed work.
 - [`dlna-media.md`](decisions/dlna-media.md): serving downloads to the projector.
-- [`living-room-audio.md`](decisions/living-room-audio.md): one speaker, two sources, one switch.
-- [`torrent-vpn.md`](decisions/torrent-vpn.md): Transmission behind Windscribe.
+- [`living-room-audio.md`](decisions/living-room-audio.md): public design summary; personal record retained privately.
+- [`torrent-vpn.md`](decisions/torrent-vpn.md): public design summary; personal record retained privately.

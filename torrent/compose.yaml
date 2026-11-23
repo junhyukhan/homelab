@@ -128,7 +128,7 @@ services:
       # HOST_WHITELIST: transmission 4.x also checks the HOST HEADER, and
       # `tailscale serve` forwards the MagicDNS name. Without this the UI answers
       # "421 Misdirected Request" — a different error, same root cause.
-      HOST_WHITELIST: "jun-hp-spectre.tail114865.ts.net,localhost,127.0.0.1"
+      HOST_WHITELIST: "${BOX_FQDN:?Set BOX_FQDN in local .env},localhost,127.0.0.1"
     # RPC credentials. Set via env, NOT by hand-editing settings.json — the
     # image's docs are explicit that credentials written into settings.json stop
     # s6 from shutting transmission down cleanly.

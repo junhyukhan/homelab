@@ -28,7 +28,7 @@ Windscribe **requires** the preshared key — gluetun will not start without it.
 Paste values **unquoted**, and paste the value only (no label, no ` = `).
 
 > **The `Address` line carries IPv4 *and* IPv6**, comma-separated:
-> `Address = 100.72.14.9/32,fd54:4::5e2e:bbb3:7a9b:9a11/128`
+> `Address = 192.0.2.10/32,2001:db8::10/128` (synthetic documentation values)
 > Take only the IPv4 part with its `/32`. The box has no IPv6 and gluetun refuses
 > to start otherwise. This is also the *safer* setting, not a workaround: with no
 > IPv6 address in the tunnel the namespace has no IPv6 route at all, so
@@ -51,7 +51,7 @@ Both lines must read `len=44 charset_ok=yes ends_with_eq=yes`.
 ### 1.2 Fill in the two gitignored env files, on the box
 
 ```bash
-ssh jhkn-homelab
+ssh "${BOX_HOST:?Set your private SSH alias}"
 cd ~/homelab && git pull
 
 cp torrent/gluetun.env.example      torrent/gluetun.env
@@ -271,7 +271,7 @@ ss -tlnp | grep 9091
 ```
 
 **Pass:** the listener is on `127.0.0.1`, never `0.0.0.0`. From another tailnet
-device, `https://jun-hp-spectre.tail114865.ts.net:8443/transmission/web/` prompts
+device, `${BOX_URL}:8443/transmission/web/` prompts
 for the RPC password. From a device on the home LAN but *not* on the tailnet,
 nothing is reachable.
 

@@ -1,0 +1,7 @@
+# Reference only: merge these keys into the existing private /config/secrets.yaml
+# under a separately authorized migration. NEVER overwrite that file; it may
+# already contain credentials. Do not commit the filled values.
+# Numeric LAN addresses are required; keep DHCP reservations stable.
+homekit_advertise_ip: "REPLACE_WITH_RESERVED_NUMERIC_LAN_IP"
+wiim_bluetooth_url: "https://REPLACE_WITH_RESERVED_NUMERIC_LAN_IP/httpapi.asp?command=setPlayerCmd:switchmode:bluetooth"
+wiim_wifi_url: "https://REPLACE_WITH_RESERVED_NUMERIC_LAN_IP/httpapi.asp?command=setPlayerCmd:switchmode:wifi"

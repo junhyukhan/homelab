@@ -16,27 +16,27 @@ crash-loop). From the Mac, always cross-build for amd64:
 
 ```bash
 # ThinkPad (native amd64):
-docker build -t 100.65.77.63:30500/myapp:v1 .
+docker build -t "${REGISTRY_HOST:?Set your local registry}/myapp:v1" .
 
 # Apple Silicon Mac — cross-build for the box's arch, load locally, then push:
-docker buildx build --platform linux/amd64 --load -t 100.65.77.63:30500/myapp:v1 .
+docker buildx build --platform linux/amd64 --load -t "${REGISTRY_HOST:?Set your local registry}/myapp:v1" .
 ```
 
 (`--load` imports the result into the local daemon so the next `docker push` goes
 through the daemon that trusts the insecure registry; buildx's own `--push` would
 need the registry marked insecure for the builder separately.)
 
-`100.65.77.63:30500` is `${REGISTRY_HOST}` — the one canonical registry address
+`${REGISTRY_HOST}` is the locally supplied canonical registry address
 (see SPEC.md). There is no `registry.homelab` hostname.
 
 ## 2. Push to the registry
 
 ```bash
-docker push 100.65.77.63:30500/myapp:v1
+docker push "${REGISTRY_HOST:?Set your local registry}/myapp:v1"
 ```
 
-(The dev machine needs `100.65.77.63:30500` in its Docker `insecure-registries` —
-Mac and ThinkPad already do.)
+The dev machine needs its actual registry address in Docker's
+`insecure-registries`. Keep that machine-specific daemon configuration private.
 
 ## 3. Add a compose block
 
@@ -71,7 +71,7 @@ Ask one question: *do I need to reach this from a device that isn't on my tailne
 or share it with someone?*
 
 - [ ] **No → Tailscale-private (the default).** Do nothing extra. It's reachable at
-      `100.65.77.63:<published-port>` for anyone on the tailnet. Stop here.
+      `<tailnet-ip>:<published-port>` for anyone on the tailnet. Stop here.
 - [ ] **Yes → add a public route (additive; it stays Tailscale-reachable too):**
   - [ ] Add an ingress rule in `cloudflared/config.yml`, *above* the 404 catch-all:
         ```yaml

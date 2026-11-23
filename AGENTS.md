@@ -2,10 +2,10 @@
 workspace:
   # docs/README.md routes into SPEC.md by section; SPEC.md stays the source of truth.
   readfirst: docs/README.md
-  # Deliberately null. `docker compose config -q` validates against duri.env,
-  # which exists only on the box — it can never pass on a laptop. scripts/verify.sh
-  # checks the box, not a change. compose.yaml is deploy-adjacent and stays manual.
-  verify: null
+  # Offline synthetic checks only. Native Compose/HA validation needs private
+  # local inputs; scripts/verify.sh checks the live box and is not an offline test.
+  # compose.yaml remains deploy-adjacent; no deployment is implied by green tests.
+  verify: python3 -B -m unittest discover -s scripts -p 'test_local_targets.py'
   autonomy: chore
 ---
 
@@ -18,7 +18,8 @@ anything else, `compose.yaml` and deploys included, waits for Han.
 
 Single box (i7-7th-gen laptop, 8 GB RAM, Debian, headless, on Tailscale) that hosts
 long-running personal services with Docker Compose. All state is in named Docker
-volumes; all config is in this repo.
+volumes; reusable configuration is public, actual identities and addresses stay local/private.
+Read `docs/local-targets.md` before adopting the parameterized source configuration.
 
 ## Read first
 
@@ -38,8 +39,10 @@ code** — spec before config, never reverse-derive the spec from `compose.yaml`
 
 ## Boundaries (do not violate)
 
-- **State & config:** all durable state lives in named Docker volumes; all config lives
-  in this repo. Nothing important lives only on the box.
+- **State & config:** durable state lives in named Docker volumes; reusable config
+  lives in this repo. Concrete target values and HA address references are private
+  configuration with a private recovery reference, never public literals. Missing
+  local values must fail clearly, not widen a bind/allowlist or guess a machine.
 - **Secrets:** live in gitignored `*.env` files (e.g. `.env`, `duri.env`); the global `.env`
   rule governs reading and moving them.
   **`duri.env.example` is a machine-read contract, not a doc**: `scripts/push-duri-env.sh`
@@ -56,7 +59,7 @@ code** — spec before config, never reverse-derive the spec from `compose.yaml`
 Intentionally manual, run *on the box* over Tailscale SSH — there is no remote control plane:
 
 ```bash
-ssh jhkn-homelab
+ssh "$BOX_HOST"  # private local SSH alias, see docs/local-targets.md
 cd ~/homelab
 ./scripts/deploy.sh
 ```

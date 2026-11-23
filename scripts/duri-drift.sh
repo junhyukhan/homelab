@@ -16,15 +16,16 @@
 #   scripts/duri-drift.sh
 #
 # Exit status: 0 current, 1 code to deploy, 2 cannot tell (never read as current).
-# Env overrides: DURI_DIR (default ../duri-v3), DURI_REF (default main).
+# Local config: DURI_DIR (required source checkout), DURI_REF (default main).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOMELAB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-DURI_DIR="${DURI_DIR:-$HOMELAB_DIR/../duri-v3}"
+source "$SCRIPT_DIR/box.sh"
 REF="${DURI_REF:-main}"
 
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
+require_target DURI_DIR || exit 2
 
 pin="$(sed -n 's|^[[:space:]]*image:[[:space:]]*[^[:space:]]*/duri:\([^[:space:]#]*\).*|\1|p' \
   "$HOMELAB_DIR/compose.yaml" | head -1)"

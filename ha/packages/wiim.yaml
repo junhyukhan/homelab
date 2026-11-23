@@ -29,16 +29,14 @@
 # verify_ssl: false is REQUIRED — the device serves this over HTTPS with a
 # self-signed cert (its mDNS record advertises `security=https`).
 #
-# The IP is hardcoded ON PURPOSE, and it must stay an IP:
-#   * The WiiM is on Wi-Fi (its getStatusEx reports apcli0=192.168.45.159,
-#     eth0=0.0.0.0), so a DHCP lease rotation breaks this silently. The address
-#     is reserved for MAC 40:D9:5A:2F:34:EC in the router — keep it that way.
-#   * Do NOT substitute `wiim-Living-Room.local`. That name also resolves via the
-#     ISP's DNS wildcard to a PUBLIC address (218.38.137.27), so a resolver that
-#     misses mDNS would send these commands to the open internet.
+# The URLs must keep a reserved NUMERIC LAN IP, supplied only through private
+# /config/secrets.yaml. A DHCP lease rotation breaks this silently; retain the
+# device's router reservation. Do not substitute an mDNS hostname: a resolver
+# missing mDNS may fall through to a public DNS wildcard and send commands off-LAN.
+# See docs/local-targets.md; never publish actual device IPs or MACs.
 rest_command:
   wiim_input_bluetooth:
-    url: "https://192.168.45.159/httpapi.asp?command=setPlayerCmd:switchmode:bluetooth"
+    url: !secret wiim_bluetooth_url
     method: get
     verify_ssl: false
     timeout: 10
@@ -47,7 +45,7 @@ rest_command:
   # Connect already pulls the WiiM back to its network input on its own; this is
   # for when the projector is holding the input and nothing is playing to take it.
   wiim_input_wifi:
-    url: "https://192.168.45.159/httpapi.asp?command=setPlayerCmd:switchmode:wifi"
+    url: !secret wiim_wifi_url
     method: get
     verify_ssl: false
     timeout: 10

@@ -16,11 +16,9 @@
 # Env overrides: DURI_DIR, BOX_HOST, REGISTRY_HOST, BOX_URL.
 set -euo pipefail
 
-# --- config (defaults match the current homelab) -----------------------------
+# --- config (identities and source paths are supplied locally) --------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOMELAB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-DURI_DIR="${DURI_DIR:-$(cd "$HOMELAB_DIR/../duri-v3" && pwd)}"
-REGISTRY_HOST="${REGISTRY_HOST:-100.65.77.63:30500}"
 source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 BOX_HOMELAB_DIR="${BOX_HOMELAB_DIR:-~/homelab}"
 
@@ -34,6 +32,8 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
+
+require_target DURI_DIR REGISTRY_HOST BOX_HOST BOX_URL || exit 2
 
 run() { if [[ $DRY_RUN == 1 ]]; then echo "  [dry-run] $*"; else eval "$*"; fi; }
 

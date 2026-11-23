@@ -41,6 +41,8 @@ DRY_RUN=0
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
 
 
+require_target BOX_HOST BOX_URL || exit 2
+
 SERVE_CMD="tailscale serve --bg --https=${SERVE_PORT} http://127.0.0.1:${TRANSMISSION_PORT}"
 TARGET_URL="${BOX_URL}:${SERVE_PORT}"
 

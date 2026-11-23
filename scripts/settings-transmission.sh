@@ -52,6 +52,8 @@ DRY_RUN=0
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
 
 
+require_target BOX_HOST || exit 2
+
 # Runs inside the transmission container. $USER/$PASS come from
 # torrent/transmission.env via env_file; TR_AUTH + --authenv keep them off the
 # command line. Single-quoted here on purpose: expansion happens in there.

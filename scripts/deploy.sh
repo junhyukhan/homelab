@@ -41,12 +41,18 @@ for arg in "$@"; do
   esac
 done
 
+require_target BOX_HOSTNAME || exit 2
+if [[ "$(hostname -s 2>/dev/null)" != "$BOX_HOSTNAME" ]]; then
+  echo 'Refusing deployment: this is not the locally configured server hostname.' >&2
+  exit 2
+fi
+
 note() { printf '  %s\n' "$*"; }
 
 # This pulls and restarts containers — it belongs on the box, not the Mac. Running
 # it on a dev machine would "succeed" against the wrong docker daemon and repo.
 if [[ ! -d "$REPO_DIR/.git" ]]; then
-  echo "✗ $REPO_DIR is not a git checkout — run this ON THE BOX (ssh jhkn-homelab)" >&2
+  echo '✗ not a git checkout — run this ON THE BOX using your private SSH alias' >&2
   exit 1
 fi
 cd "$REPO_DIR"

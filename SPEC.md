@@ -7,14 +7,31 @@ trace back to a section here.
 
 Status: post-migration target state (k3s → Docker Compose).
 
+### Public/private configuration boundary
+
+Public git declares service behavior, not actual host identities or private source
+repository names. Compose's local `.env` supplies `TAILSCALE_IP`, `REGISTRY_HOST`
+and `BOX_FQDN`; none has a public machine-specific default. Scripts load optional
+non-secret identifiers from `~/.config/homelab/targets.sh` (or
+`HOMELAB_TARGETS_FILE`) and require the values they use. App source paths are local
+inputs, not inferred sibling-repository names. Home Assistant packages use
+`!secret` references for the numeric LAN advertise address and the two numeric-IP
+WiiM URLs; these resolve from the existing volume's private `/config/secrets.yaml`.
+
+**Migration gate:** provision and validate those local values before deploying
+these source changes. Do not overwrite an existing HA secrets file, substitute
+mDNS names for numeric WiiM IPs, broaden Transmission's host allowlist, or change
+service bindings. This is source preparation, not a completed runtime migration.
+See `docs/local-targets.md`.
+
 ---
 
 ## Goals
 
 - A **hub that hosts long-running personal services** on one box, reachable over
   Tailscale by default.
-- **All state in named Docker volumes, all config in git.** The repo declares the
-  homelab; the box just runs it.
+- **All state in named Docker volumes; reusable config in public git.** Actual
+  machine identities and address maps stay in local/private configuration.
 - Adding a **private** service is: edit `compose.yaml`, `docker compose up -d`,
   done. Adding a **public** one adds a cloudflared ingress rule and a Cloudflare
   Access policy on top — nothing more.
@@ -80,7 +97,7 @@ ThinkPad, and the homelab pulling its own images. Using the published Tailscale
 port uniformly means the same image reference works regardless of who's pulling.
 
 In this repo that address is carried in the **`REGISTRY_HOST`** env var
-(`.env`, defaulting to `100.65.77.63:30500`). Image references use
+(`.env`, supplied locally as `<tailscale-ip>:30500`). Image references use
 `${REGISTRY_HOST}/<name>:<tag>`, never a bare literal and never a service-name
 form like `registry:5000`. The compose service is still *named* `registry` on
 `homelab_net`, but nothing references it by that name for pulls.
@@ -168,11 +185,11 @@ the table below is true rather than intended:
 ```
 default deny incoming · default allow outgoing
 allow in on tailscale0 · allow in on lo
-allow from 192.168.45.0/24 to any port 49494 proto tcp   # gerbera, see §Media serving
-allow from 192.168.45.0/24 to any port 1900  proto udp   # SSDP discovery
-allow from 192.168.45.0/24 to any port 21063 proto tcp   # HomeKit bridge "Homelab"
-allow from 192.168.45.0/24 to any port 21064 proto tcp   # HomeKit bridge "Homelab Partner"
-allow from 192.168.45.0/24 to any port 5353  proto udp   # mDNS — HomeKit advertisement
+allow from <lan-cidr> to any port 49494 proto tcp   # gerbera, see §Media serving
+allow from <lan-cidr> to any port 1900  proto udp   # SSDP discovery
+allow from <lan-cidr> to any port 21063 proto tcp   # HomeKit bridge "Homelab"
+allow from <lan-cidr> to any port 21064 proto tcp   # HomeKit bridge "Homelab Partner"
+allow from <lan-cidr> to any port 5353  proto udp   # mDNS — HomeKit advertisement
 ```
 
 **The LAN rules are not leftovers to tidy up later.** Gerbera and the HomeKit bridges are
@@ -182,7 +199,7 @@ documented as deliberate LAN exposure in §Media serving and §HomeKit bridge.
 
 SSH keeps no LAN rule: it is reachable over `tailscale0` only, and password auth is off.
 
-**Measured after the change, from a host on the LAN (192.168.45.40), 2026-09-14:**
+**Historical measurement from a LAN host, 2026-09-14 (actual address retained privately):**
 `:8123` blocked from LAN / 200 over tailnet · `:445`,`:139` gone · `:22` blocked from LAN,
 open over tailnet · `:49494` open from LAN. Re-measure with `nc -z <ip> <port>` from a
 non-tailnet device; the box's own `ss -tln` shows what *binds*, never what is *reachable*,
@@ -436,9 +453,10 @@ Home Assistant gets config from **two places, and the boundary is deliberate**:
 | `./ha/packages` → `/config/packages` (**ro**, git) | **Declarative config** — things a decision put in place | A human, in this repo |
 
 The rule: *if its silent disappearance would go unnoticed, it belongs in git.* A
-credential HA obtained through an OAuth flow is state and belongs in the volume. A
-`rest_command` carrying a hardcoded device IP is a decision, and burying it in a Docker
-volume means a volume restore would delete it with nothing to say so.
+credential HA obtained through an OAuth flow is state and belongs in the volume.
+A `rest_command` definition belongs in public git, but the actual device address is
+private configuration. Its required `!secret` key is declared publicly so that a
+missing local value fails configuration validation rather than being guessed.
 
 This is the same pattern as gerbera's `config.xml` — a file HA does not rewrite can be
 the source of truth in git, unlike transmission's `settings.json`, which is rewritten on
@@ -479,9 +497,10 @@ Two things are load-bearing and both are DHCP-fragile:
   regularly picks a docker bridge address under host networking; pairing then fails with
   no useful error, because the iPhone dials an address that does not exist on its network.
 - **Two router reservations are prerequisites**, not nice-to-haves — the box
-  (`192.168.45.71`, `wlp1s0`, and it is on **Wi-Fi**) because `advertise_ip` hardcodes it,
-  and the WiiM (`192.168.45.159`, MAC `40:D9:5A:2F:34:EC`) because the `rest_command` URL
-  does. A lease rotation on either breaks its feature *silently*.
+  (its reserved numeric LAN IP on **Wi-Fi**) because `advertise_ip` requires it,
+  and the WiiM (its reserved numeric LAN IP) because the `rest_command` URLs
+  require it. Actual reservations/MACs stay private; `!secret` resolves local
+  values. A lease rotation on either breaks its feature *silently*.
 
 Exposure is **per entity, opt-in** — the same posture as public routes. Anything in the
 allowlist is visible to every device signed into the home. Pairing state lives in
@@ -572,7 +591,9 @@ in a way that forecloses them.
 | Key             | Value / default        | Used by / status |
 |-----------------|------------------------|------------------|
 | `TZ`            | `Asia/Seoul`           | home-assistant (`TZ`), and future services |
-| `REGISTRY_HOST` | `100.65.77.63:30500`   | image refs for own services (`${REGISTRY_HOST}/...`), docs |
+| `REGISTRY_HOST` | required local `<tailscale-ip>:30500` | image refs for own services (`${REGISTRY_HOST}/...`), docs |
+| `TAILSCALE_IP` | required local tailnet IPv4 | registry binding; missing value must not become a wildcard bind |
+| `BOX_FQDN` | required local MagicDNS hostname | Transmission's exact host-header allowlist; no wildcard |
 | `BASE_DOMAIN`   | (human's domain)       | reserved — used by cloudflared ingress hostnames once a public route exists |
 | `PUID`          | e.g. `1000`            | **now consumed** by transmission (a linuxserver image); still not by registry/HA, which run as root |
 | `PGID`          | e.g. `1000`            | **now consumed** by transmission — as above |

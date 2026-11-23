@@ -29,21 +29,22 @@ Preview first with `--dry-run` (changes nothing). Deploy an uncommitted tree wit
 
 ## What's live right now
 ```bash
-curl -s http://100.65.77.63:3000/api/version         # {"version":"<sha>","builtAt":...}
+curl -s "${BOX_URL:?Set the local HTTPS endpoint}/api/version"
 # or, without HTTP:
-ssh jhkn-homelab \
+ssh "${BOX_HOST:?Set your private SSH alias}" \
   'docker inspect --format "{{index .Config.Labels \"org.opencontainers.image.revision\"}}" homelab-duri-1'
 ```
 
 ## Notes / guardrails
 - **Secrets:** the script feeds the *public* `NEXT_PUBLIC_*` Supabase values as build
-  args (extracted file-to-file from `duri-v3/.env.hosted`, never printed). Server
+  args (extracted file-to-file from the locally supplied source checkout's public
+  build-input file, never printed). Server
   secrets (`SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `ANTHROPIC_API_KEY`) are **not**
   baked — the box supplies them at runtime via `duri.env`.
 - **Never `:latest`.** The tag is always a git SHA, pinned in `compose.yaml`.
-- **SSH is over Tailscale**, through the `jhkn-homelab` alias in `~/.ssh/config`. The alias owns
-  the user, address and key; `scripts/box.sh` names the alias and nothing else.
-- Env overrides (`DURI_DIR`, `BOX_HOST`, `BOX_URL`) exist for a
-  different machine/box. Defaults match the current setup.
+- **SSH is over Tailscale**, through a private local alias in `~/.ssh/config`.
+  The alias owns the user, address and key; no actual alias is published here.
+- Local inputs (`DURI_DIR`, `BOX_HOST`, `BOX_URL`, `REGISTRY_HOST`) are required;
+  there are no machine-specific defaults. See `docs/local-targets.md`.
 - **Next rung (not built):** a self-hosted GitHub Actions runner on the box would
   turn merge-to-main into an auto-deploy — see `SPEC.md` §Deploy.

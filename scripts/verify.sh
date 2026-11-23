@@ -19,18 +19,20 @@
 #
 # Exit status is 0 only if every check passes — safe to chain or run from a cron.
 #
-# Env overrides: BOX_HOST, BOX_HOMELAB_DIR (the checkout on the box, from elsewhere), REPO_DIR (on the box).
+# Local config: BOX_HOST, BOX_HOSTNAME, BOX_HOMELAB_DIR, REPO_DIR (on the box).
 set -uo pipefail
 
-BOX_HOSTNAME="jun-hp-spectre"
 source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 REPO_DIR="${REPO_DIR:-$HOME/homelab}"
 
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { grep '^#' "$0" | sed 's/^# \?//'; exit 0; }
 
+require_target BOX_HOSTNAME || exit 2
+
 # Re-exec on the box if we're not already there. Everything below inspects docker,
 # listening sockets and tailscaled — all of which only mean anything on the box.
 if [[ "$(hostname -s 2>/dev/null)" != "$BOX_HOSTNAME" ]]; then
+  require_target BOX_HOST || exit 2
   exec ssh -o BatchMode=yes -o ConnectTimeout=10 "$BOX_HOST" \
     "cd ${BOX_HOMELAB_DIR:-~/homelab} && ./scripts/verify.sh"
 fi

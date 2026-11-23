@@ -28,7 +28,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOMELAB_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-DURI_DIR="${DURI_DIR:-$(cd "$HOMELAB_DIR/../duri-v3" && pwd)}"
 source "$(dirname "${BASH_SOURCE[0]}")/box.sh"
 BOX_HOMELAB_DIR="${BOX_HOMELAB_DIR:-~/homelab}"
 
@@ -44,6 +43,8 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
+
+require_target DURI_DIR BOX_HOST || exit 2
 
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 bad()  { printf '  \033[31m✗\033[0m %s\n' "$*"; }
