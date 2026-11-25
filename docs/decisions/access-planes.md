@@ -15,21 +15,9 @@ generated: { by: claude/opus-5, at: 2026-07-30T00:00:00Z }
 
 Governs the **Access planes** section of [`../../SPEC.md`](../../SPEC.md). Newest decision first.
 
-> ## ⚠ No verbatim ask — this record is reconstructed
->
-> Both decisions below were made on 2026-07-15 and 2026-07-17. The convention that a decision gets a
-> record with Han's exact words landed in `config/claude/.claude/AGENTS.md` on **2026-07-19** —
-> *after* both — so nothing was skipped at the time. Dated against `git log` before writing this, per
-> the rule in `config/docs/decisions/artifact-checking.md`.
->
-> **What follows is reconstructed from the commit bodies and the current `SPEC.md`, not from Han.**
-> The reasoning is his; the *wording* is the agent's, written at commit time. Nothing here is quoted
-> as verbatim, because inventing a quote would defeat the point of the convention. If Han wants his
-> own framing on either decision, it should be added above the Discussion as a dated quote.
->
-> Surfaced on 2026-07-30 by the records-owed check in `repos/ops/index.py` — the deterministic
-> backstop from `repos/docs/decisions/decision-capture.md`, doing exactly the job it was specified
-> for: it cannot reconstruct a record, but it made a silent absence visible.
+> **Reconstructed record.** Both decisions below (2026-07-15 and 2026-07-17) predate decision
+> records. What follows is rebuilt from the commit bodies and the current `SPEC.md`: the reasoning is
+> Han's, the wording is the agent's.
 
 ---
 

@@ -14,16 +14,13 @@ generated: { by: claude/opus-5, at: 2026-09-04T09:00:00Z }
 **Status:** in progress (2026-09-04) — findings recorded; the deletions are Han's call and have
 not been made.
 
-## Why — the ask (verbatim)
+## Why
 
-Not Han's words: this record was produced by a review dispatch. Quoted verbatim from
-`repos/ops/dispatch/homelab-review.md`, dispatched 2026-09-04 08:14 UTC by `ops/orchestrator.py`:
-
-> **Verbatim (2026-09-04):** "Three unmerged branches — feat/cloudflared-profile,
-> feat/deploy-verify, fix/verify-profiled-services — each 1 commit ahead of main, 11-18d cold,
-> flagged by ops/index.py as possible unreclaimed work. For each: what is the commit, is it
-> superseded by what has since landed on main, and is it reclaim or drop? Report your findings;
-> do not merge or delete anything."
+2026-09-04: not Han's words. A review dispatch (`repos/ops/dispatch/homelab-review.md`) asked about
+three unmerged branches, `feat/cloudflared-profile`, `feat/deploy-verify` and
+`fix/verify-profiled-services`: each 1 commit ahead of main, 11 to 18 days cold, flagged as possible
+unreclaimed work. For each, it asked what the commit is, whether main has since superseded it, and
+whether to reclaim or drop it, without merging or deleting anything.
 
 ## Discussion
 

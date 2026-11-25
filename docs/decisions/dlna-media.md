@@ -14,25 +14,15 @@ generated: { by: claude/opus-5, at: 2026-08-15T00:00:00Z }
 **Status:** in progress (2026-08-15) — built, pending first deploy and a playback test
 from the projector.
 
-## Why — the ask (verbatim)
+## Why
 
-> **Verbatim (2026-08-15):** "btw, so how can i use this homelab to stream or serve or
-> watch the videos i downloaded on my hisense m2pro projector?"
-
-The first answer assumed Google TV and recommended Jellyfin. Han corrected it:
-
-> **Verbatim (2026-08-15):** "hisense m2 pro runs vidaaOS btw"
-
-That correction is the hinge of the whole design — see Discussion. After three options
-were laid out (Google TV dongle + Jellyfin / DLNA server / Plex):
-
-> **Verbatim (2026-08-15):** "i like 2. and there is a 콘텐츠 공유 menu - make sure the
-> phone/pc is on the same network ..."
-
-Then, on the three follow-up forks:
-
-> **Verbatim (2026-08-15):** selected "Gerbera (Recommended)", "Yes — separate incomplete
-> dir (Recommended)", and "Disable the UI; config.xml in git (Recommended)".
+2026-08-15: Han asked how to watch downloaded videos from the homelab on the Hisense M2 Pro
+projector. The first answer assumed Google TV and recommended Jellyfin; Han corrected that the
+projector runs VIDAA OS. That correction is the hinge of the whole design; see Discussion. Of three
+options (Google TV dongle + Jellyfin, a DLNA server, Plex) he picked DLNA, pointing at VIDAA's
+콘텐츠 공유 menu, which needs the server on the same network. On the follow-ups he took the
+recommended option each time: Gerbera, a separate incomplete-downloads dir, and the UI disabled with
+`config.xml` in git.
 
 ## Discussion
 

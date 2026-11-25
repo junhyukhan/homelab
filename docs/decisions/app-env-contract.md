@@ -13,18 +13,12 @@ generated: { by: claude/opus-5, at: 2026-08-08T00:00:00Z }
 
 **Status:** done (2026-08-08)
 
-## Why — the ask (verbatim)
+## Why
 
-> **Verbatim (2026-08-08):** "hmm how do i improve the dev ops for homelab?"
-
-Then, having been shown four ranked options (env contract as a gate · box-drift reporting ·
-healthchecks · deploy-on-merge via a self-hosted runner):
-
-> **Verbatim (2026-08-08):** "i don't need a self hosted runner right now. but i do want to
-> automate the 'copy env value, ssh into box and paste' ops. a deploy script that just scp/cp
-> the .env into the box?"
-
-Selected alongside it: **Env contract as a gate.**
+2026-08-08: Han asked how to improve homelab's dev ops. Of four ranked options he took the env
+contract as a gate, and declined a self-hosted runner for now. What he wanted automated was the
+manual "copy the env value, ssh into the box and paste" step, ideally as a deploy script that copies
+the `.env` to the box.
 
 ## Discussion
 

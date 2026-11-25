@@ -28,13 +28,14 @@ generated: { by: <claude/opus-5 | human:junhyukhan>, at: <YYYY-MM-DDTHH:MM:SSZ> 
               prefix is what marks content as hand-authored, so use it when you wrote it.
      The prose **Status:** line above stays — it carries the detail the enum can't. -->
 
-## Why — the ask (verbatim)
+## Why
 
-> **Verbatim (<YYYY-MM-DD>):** "<paste the exact words — informal wording and all; the raw
-> phrasing captures intent and 취향 better than a tidy restatement>"
+<YYYY-MM-DD>: <what Han asked for and why, in a few plain sentences, using the real names of
+tools, machines and files so a grep finds it>
 
-<!-- Stack more verbatim quotes as the decision evolves. Mid-build steers and taste calls count
-     too — a one-line course-correction carries intent, so quote it, don't paraphrase. -->
+<!-- Quote Han only where the exact wording carries intent: a condition, a qualifier, a taste
+     call. Spell out a picked option instead of quoting a letter. Add a dated line as the
+     decision evolves. -->
 
 ## Discussion
 
